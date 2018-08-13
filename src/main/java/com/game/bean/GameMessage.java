@@ -16,9 +16,9 @@ public class GameMessage {
     private long sessionId;//tcp/ip长连接的回话id
     private long mapId;//游戏中场景id
     private long timeStamp;//这条记录产生的时间
-    private int actionType;// 0:玩家正常发送命令；1:玩家挂机；2：攻击；3：购买；4:发送消息
+    private int actionType;// 0:玩家挂机；1:攻击玩家；2：攻击怪物；3：购买物品；4:发送消息
     private long itemId;//物品id
-    private int monsterType;//怪物类型
+    private int monsterType;//怪物类型 0 小怪；1战车；2暴君；3主宰；4野兽；5红buf；6蓝buf；7塔；8水晶；9河道
     private long monsterId;//怪物id
     private long attackedRoleId;//承受玩家角色id
     private String mesContent;//消息内容

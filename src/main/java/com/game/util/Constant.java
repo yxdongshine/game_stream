@@ -9,7 +9,7 @@ public class Constant {
      * 发送消息相关
      */
     public static final String TOPIC_NAME = "gamestream";
-    public static final Boolean isSync = true;//是否同步
+    public static final Boolean isSync = false;//是否异步
     /**
      * sparkStream 相关
      */
