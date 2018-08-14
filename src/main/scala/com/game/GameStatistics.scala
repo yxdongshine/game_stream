@@ -1,18 +1,21 @@
 package scala.com.game
 
+import com.alibaba.fastjson.{JSONObject, JSON}
 import com.game.util.Constant
 import kafka.serializer.StringDecoder
 import org.apache.spark.SparkConf
-import org.apache.spark.streaming.dstream.InputDStream
+import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.streaming.kafka.{KafkaUtils}
+
+import scala.collection.immutable.IndexedSeq
 
 /**
  * Created by YXD on 2018/8/11.
  *
  * 指标类容：
- *  1.某段时间内某玩家恶意攻击-黑名单操作
- *    （playerid）
+ *  1.实时更新某玩家恶意攻击-黑名单操作
+ *    （playerid） 我们规定在一分钟之内点击数超过X次就为恶意攻击
  *    （广播变量-排除白名单）
  *  2.过滤掉黑名单产生的行为
  *  3.实时过滤消息内容敏感词汇（实时消息频道推送及屏蔽敏感词汇）
@@ -33,8 +36,8 @@ class GameStatistics {
     val conf = new SparkConf()
     .setMaster("local[2]")
     .setAppName(Constant.APP_NAME)
-    val ssc = new StreamingContext(conf,Seconds(10))
-    //设置Checkpointing
+    val ssc = new StreamingContext(conf,Seconds(Constant.BATCH_SECONDS))
+    //设置Checkpointing 主要checkpoint 配置等
     ssc.checkpoint(Constant.CHECK_POINT_PATH)
     ssc
   }
@@ -48,11 +51,124 @@ class GameStatistics {
     (params,topicsSet)
   }
 
-  def main(args: Array[String]) {
+  /**
+   * 处理的数据流及checkpoint配置 rdd数据及操作方法等
+   * @return
+   */
+  def createCheckPointStreamContext():StreamingContext ={
     val ssc = createSsc
     val pt = initKafka()
     //创建stream
     val dStream:InputDStream[(String, String)] = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, pt._1,pt._2)
+    //下面开始处理流 同时也是为了rdd 和 元数据的checkpoint
+    //设置stream checkpoint时间
+    dStream.checkpoint(Seconds(5 * Constant.BATCH_SECONDS))
+    //对于数据流来说 目前只需要value，针对分区的key暂时不处理
+    val messagedStream: DStream[String] = dStream.map(_._2)
+    //第一步消息格式化
+    val messageFormattedStream: DStream[GameMessage] = messagedStream.map(line => {
+        // 解析成GameMessage类
+        val jsonObj: JSONObject = JSON.parseObject(line.toString)
+        jsonObj match {
+          case JSONObject =>{
+            Some(
+              GameMessage(
+                jsonObj.getString("key"),
+                jsonObj.getLong("index"),
+                jsonObj.getInteger("gameId"),
+                jsonObj.getLong("playerId"),
+                jsonObj.getLong("roleId"),
+                jsonObj.getLong("sessionId"),
+                jsonObj.getLong("mapId"),
+                jsonObj.getLong("timeStamp"),
+                jsonObj.getInteger("actionType"),
+                jsonObj.getLong("itemId"),
+                jsonObj.getInteger("monsterType"),
+                jsonObj.getLong("monsterId"),
+                jsonObj.getLong("attackedRoleId"),
+                jsonObj.getString("mesContent")
+              )
+            )
+          }
+          case _ => None
+        }
+        /*if (jsonObj.isEmpty) {
+          None
+        } else {
+          Some(
+            GameMessage(
+              jsonObj.getString("key"),
+              jsonObj.getLong("index"),
+              jsonObj.getInteger("gameId"),
+              jsonObj.getLong("playerId"),
+              jsonObj.getLong("roleId"),
+              jsonObj.getLong("sessionId"),
+              jsonObj.getLong("mapId"),
+              jsonObj.getLong("timeStamp"),
+              jsonObj.getInteger("actionType"),
+              jsonObj.getLong("itemId"),
+              jsonObj.getInteger("monsterType"),
+              jsonObj.getLong("monsterId"),
+              jsonObj.getLong("attackedRoleId"),
+              jsonObj.getString("mesContent")
+            )
+          )
+        }*/
+    })
+    .filter(_.isDefined) //不为空(None)的元素
+    .map(_.get)
 
+    //判定黑名单操作
+    /**
+     * 1.将每一条记录value设置为1
+     * 2.窗口实时统计
+     * 3.元祖 value大于X次的数据为恶意操作
+     * 4.广播过滤掉白名单
+     * 5.分区写入redis
+     */
+    messageFormattedStream.map(gm => {
+      (gm.playerId,1)
+    })
+    .reduceByKeyAndWindow(
+        (beforeValue:Int,afterValue:Int) =>{ beforeValue + afterValue},
+        Seconds(Constant.WINDOW_LENGTH_SECONDS),//窗口长度
+        Seconds(Constant.WINDOW_INTERVAL_SECONDS)//滑动距离
+      )
+    .filter(_._2 >= Constant.MALICIOUS_ATTACK_PLAYER_SEND_NUM)
+
+
+
+    //
+    //
+    //最后也要返回StreamingContext
+    ssc
+  }
+
+  def main(args: Array[String]) {
+    //checkpoint目录和创建的匿名函数
+    val ssc = StreamingContext.getOrCreate(Constant.CHECK_POINT_PATH,() => createCheckPointStreamContext())
+    ssc.start();//启动实时流
+    ssc.awaitTermination();//等待认为中断 一直监听
   }
 }
+
+
+/**
+ * 消息实体类
+ */
+case class GameMessage(
+                        key: String ,
+                        index: Long,
+                        gameId: Int ,
+                        playerId: Long ,
+                        roleId: Long ,
+                        sessionId: Long ,
+                        mapId: Long ,
+                        timeStamp: Long ,
+                        actionType: Int ,
+                        itemId: Long ,
+                        monsterType: Int ,
+                        monsterId: Long ,
+                        attackedRoleId: Long,
+                        mesContent: String
+                        )

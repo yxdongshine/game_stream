@@ -18,6 +18,9 @@ public class Constant {
     public static final String ZOOKEEPER_CONNECT = "hadoop0:2181,w100:2181,hadoop81:2181";
     public static final String GROUP_ID = "GameStatistics_group";
 
-
+    public static final int BATCH_SECONDS = 10;//stream 批次时间
+    public static final int WINDOW_LENGTH_SECONDS = 60;//窗口长度
+    public static final int WINDOW_INTERVAL_SECONDS = 50;//窗口滑动时间
+    public static final int MALICIOUS_ATTACK_PLAYER_SEND_NUM = 10;//Malicious attack 次数上限
 
 }
