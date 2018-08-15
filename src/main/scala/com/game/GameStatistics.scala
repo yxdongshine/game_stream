@@ -1,11 +1,14 @@
 package scala.com.game
 
+import java.util
+
 import com.alibaba.fastjson.{JSONObject, JSON}
 import com.game.RedisPool.RedisUtils
 import com.game.instance.WhiteList
 import com.game.util.Constant
 import kafka.serializer.StringDecoder
 import org.apache.spark.SparkConf
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.streaming.kafka.{KafkaUtils}
@@ -141,7 +144,7 @@ class GameStatistics {
     .transform(//.foreachRDD( //这里是可以用foreachRDD 但是只能用一次，后面保存操作没法用
       rdd => {
         //获取白名单
-        val whitePlayerList = WhiteList.getInstance(rdd.sparkContext)
+        val whitePlayerList: Broadcast[mutable.Set[String]] = WhiteList.getInstance(rdd.sparkContext)
         rdd match {
           case (Long, Int) => {
             rdd.filter(rdd => whitePlayerList.value.contains(rdd._1.toString))
@@ -167,6 +170,23 @@ class GameStatistics {
       }
       )
 
+    /**
+     * 将黑名单数据过滤掉
+     *  1.transform 将流内数据转换 获取RedisUtils 黑名单列表数据
+     *  2.match 模式匹配 直接过路
+     *    注意：foreachRDD foreachPartition 只是在输出action优化，其他转换因子都不需要
+     *
+     */
+    val messageFormattedFilterStream: DStream[GameMessage] = messageFormattedStream.transform(
+      rdd => {
+        val blackPlayerList: util.Set[String] = RedisUtils.sMembers(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY)
+        rdd match {
+          case GameMessage => {
+            rdd.filter(rdd => blackPlayerList.contains(rdd.playerId))
+          }
+        }
+      }
+    )
 
 
     //
