@@ -1,6 +1,8 @@
 package scala.com.game
 
 import com.alibaba.fastjson.{JSONObject, JSON}
+import com.game.RedisPool.RedisUtils
+import com.game.instance.WhiteList
 import com.game.util.Constant
 import kafka.serializer.StringDecoder
 import org.apache.spark.SparkConf
@@ -9,6 +11,7 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.streaming.kafka.{KafkaUtils}
 
 import scala.collection.immutable.IndexedSeq
+import scala.collection.{JavaConversions, mutable}
 
 /**
  * Created by YXD on 2018/8/11.
@@ -134,7 +137,35 @@ class GameStatistics {
         Seconds(Constant.WINDOW_LENGTH_SECONDS),//窗口长度
         Seconds(Constant.WINDOW_INTERVAL_SECONDS)//滑动距离
       )
-    .filter(_._2 >= Constant.MALICIOUS_ATTACK_PLAYER_SEND_NUM)
+    .filter(tuple => tuple._2 >= Constant.MALICIOUS_ATTACK_PLAYER_SEND_NUM)
+    .transform(//.foreachRDD( //这里是可以用foreachRDD 但是只能用一次，后面保存操作没法用
+      rdd => {
+        //获取白名单
+        val whitePlayerList = WhiteList.getInstance(rdd.sparkContext)
+        rdd match {
+          case (Long, Int) => {
+            rdd.filter(rdd => whitePlayerList.value.contains(rdd._1.toString))
+          }
+        }
+      }
+      )
+    .foreachRDD(//这里就是每个区含有的黑名单数据
+      rdd => {
+        rdd.foreachPartition(
+          partitionOfRecords =>{
+            //优化方式一：这里优化每个区获取一次redis连接
+
+            //优化方式二：整个分区组成集合写入redis
+            var blackPlayerList:mutable.Set[String] = mutable.Set()
+            partitionOfRecords.foreach(record => {
+              blackPlayerList.+=(record._1.toString)
+            })
+            // 这里更新黑名单
+            RedisUtils.sAdd(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY,JavaConversions.asJavaSet(blackPlayerList))
+          }
+        )
+      }
+      )
 
 
 

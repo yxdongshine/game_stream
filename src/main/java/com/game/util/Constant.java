@@ -23,4 +23,7 @@ public class Constant {
     public static final int WINDOW_INTERVAL_SECONDS = 50;//窗口滑动时间
     public static final int MALICIOUS_ATTACK_PLAYER_SEND_NUM = 10;//Malicious attack 次数上限
 
+    public static final String SYSTEM_PREFIX = "GAME_";//系统app redis前缀
+    public static final String BLACK_LIST_KEY = "black_list";//黑名单key
+    public static final String WHITE_LIST_KEY = "white_list";//白名单key
 }

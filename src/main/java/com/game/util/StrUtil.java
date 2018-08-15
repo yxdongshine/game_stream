@@ -165,4 +165,13 @@ public class StrUtil {
     }
 
 
+    /**
+     * 字符串是否是null
+     * @param str
+     * @return
+     */
+    public static boolean isNull(String str){
+        return (null == str
+                || str.isEmpty());
+    }
 }
