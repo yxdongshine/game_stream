@@ -3,8 +3,9 @@ package scala.com.game
 import java.util
 
 import com.alibaba.fastjson.{JSONObject, JSON}
+import com.game.InnerGate.InnerConnectPool
 import com.game.RedisPool.RedisUtils
-import com.game.instance.WhiteList
+import com.game.instance.{SensitiveVocabularyList, WhiteList}
 import com.game.util.Constant
 import kafka.serializer.StringDecoder
 import org.apache.spark.SparkConf
@@ -137,8 +138,8 @@ class GameStatistics {
     })
     .reduceByKeyAndWindow(
         (beforeValue:Int,afterValue:Int) =>{ beforeValue + afterValue},
-        Seconds(Constant.WINDOW_LENGTH_SECONDS),//窗口长度
-        Seconds(Constant.WINDOW_INTERVAL_SECONDS)//滑动距离
+        Seconds(Constant.BLACK_LIST_WINDOW_LENGTH_SECONDS),//窗口长度
+        Seconds(Constant.BLACK_LIST_WINDOW_INTERVAL_SECONDS)//滑动距离
       )
     .filter(tuple => tuple._2 >= Constant.MALICIOUS_ATTACK_PLAYER_SEND_NUM)
     .transform(//.foreachRDD( //这里是可以用foreachRDD 但是只能用一次，后面保存操作没法用
@@ -187,6 +188,83 @@ class GameStatistics {
         }
       }
     )
+
+    /**
+     * 实时过滤掉敏感词汇并调用转发session
+     *  1.只要消息actionType=4发送消息的动作
+     *  2.reduceByKeyAndWindow 这里需要减少延时性操作 window：3s；interval：2s
+     *  3.从广播中获取敏感词汇
+     *  4.如果含有就用特殊符号替换
+     *  5.再转发session
+     */
+    messageFormattedFilterStream.filter(gm =>({
+        Constant.ACTION_TYPE_SEND_MESSAGE == gm.actionType}))
+    .foreachRDD(rdd =>{
+      //这里获取分布式rdd记录能获取到，因为是广播变量
+      val sensitiveVocabularyList:Broadcast[mutable.Set[String]] = SensitiveVocabularyList.getInstance(rdd.sparkContext)
+      rdd.foreachPartition(partitionOfRecords =>{
+        //这里优化 获取发送网关连接
+        val innerGate = InnerConnectPool.getInstance()
+        partitionOfRecords.map(record =>{
+          /*if(sensitiveVocabularyList.value.exists(value =>{
+              record.mesContent.contains(value)
+          })){//如果存在替换原来的敏感词汇
+            record
+          }*/
+          sensitiveVocabularyList.value.foreach(value =>{
+            if(record.mesContent.contains(value)){
+              record.mesContent.replace(value,Constant.SENSITIVE_VOCABULARY_REPLACE_CHARS)
+            }
+          })
+          //然后每条消息都需要转发给网关服务网
+          innerGate.sendMessage(record.key,record.index,record.gameId,record.playerId,
+            record.roleId,record.sessionId,record.mapId,record.timeStamp,record.actionType,
+            record.itemId,record.monsterType,record.monsterId,record.attackedRoleId,record.mesContent
+          )
+        })
+      })
+    })
+
+    /**
+     *判断是否存在挂机行为
+     * 1.在过滤后的合法数据流里面得到挂机记录
+     * 2.reduceByKeyAndWindow 统计每分钟内出现的次数
+     *    注意：这里需要将value设置数值型
+     * 3.过滤得到大于等于挂机记录判定值
+     * 4.分区发送邮件通知
+      */
+    messageFormattedFilterStream.filter(gm =>{
+      Constant.ACTION_TYPE_HANG_UP == gm.actionType
+    })
+    .map(gm =>{
+      ((gm.gameId,gm.playerId,gm.roleId,gm.sessionId,gm.timeStamp,gm.actionType),1)
+    })
+    .reduceByKeyAndWindow(
+        (beforeValue:Int,nowValue:Int) =>{
+          beforeValue + nowValue
+        },
+        Seconds(Constant.HANG_UP_WINDOW_LENGTH_SECONDS),//窗口长度
+        Seconds(Constant.HANG_UP_WINDOW_INTERVAL_SECONDS)//滑动间隔
+      )
+    .filter(tuple =>{//得到挂机人员
+      tuple._2 >= Constant.HANG_UP_SEND_NUM
+    })
+    .foreachRDD(rdd =>{
+      rdd match {
+        case ((Int,Long,Long,Long,Long,Int),Int) =>{
+          //这里调用邮件实体类
+          rdd.foreachPartition(partitionOfRecords =>{
+            //最好一个集合保存
+            partitionOfRecords.map(record =>{
+
+            })
+          })
+          //调用邮件实体类发送集合
+
+        }
+      }
+    })
+
 
 
     //
