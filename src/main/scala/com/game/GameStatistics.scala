@@ -4,8 +4,10 @@ import java.util
 
 import com.alibaba.fastjson.{JSONObject, JSON}
 import com.game.InnerGate.InnerConnectPool
+import com.game.Mail.{MailBody, MailAccount, MailUtils}
 import com.game.RedisPool.RedisUtils
 import com.game.instance.{SensitiveVocabularyList, WhiteList}
+import com.game.systeminfrastructure.SingleChannel
 import com.game.util.Constant
 import kafka.serializer.StringDecoder
 import org.apache.spark.SparkConf
@@ -41,7 +43,7 @@ class GameStatistics {
 
   def createSsc():StreamingContext ={
     val conf = new SparkConf()
-    .setMaster("local[2]")
+    .setMaster("local[*]")
     .setAppName(Constant.APP_NAME)
     val ssc = new StreamingContext(conf,Seconds(Constant.BATCH_SECONDS))
     //设置Checkpointing 主要checkpoint 配置等
@@ -252,15 +254,27 @@ class GameStatistics {
     .foreachRDD(rdd =>{
       rdd match {
         case ((Int,Long,Long,Long,Long,Int),Int) =>{
-          //这里调用邮件实体类
           rdd.foreachPartition(partitionOfRecords =>{
-            //最好一个集合保存
+            //这里调用邮件实体类
+            val account = new MailAccount();
+            account.setAccount(SingleChannel.getConfig("send_mail_account"));
+            account.setPassword(SingleChannel.getConfig("send_mail_password"));
+            account.setSmtpHost(Constant.SMTP_HOST);
+            account.setSmtpPort(Constant.SMTP_PORT);
+            val instance = MailUtils.newInstance(account)
             partitionOfRecords.map(record =>{
-
+              //发送每一条邮件
+              val mailBody = new MailBody();
+              mailBody.setSubject(Constant.RECEIVE_MAIL_SUBJECT);
+              val warnContent = Constant.RECEIVE_MAIL_CONTENT
+                .replace("playerId",record._1._2.toString)
+                .replace("timeStamp",record._1._5.toString)
+                .replace("gameId",record._1._1.toString)
+                .replace("roleId",record._1._3.toString)
+              mailBody.setContent(warnContent)
+              instance.send(SingleChannel.getConfig("send_mail_account"),mailBody)
             })
           })
-          //调用邮件实体类发送集合
-
         }
       }
     })

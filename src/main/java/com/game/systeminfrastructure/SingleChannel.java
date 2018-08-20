@@ -35,11 +35,11 @@ public class SingleChannel {
         getInstance().getConfigInfo().put(key,value);
     }
 
-    private ConcurrentHashMap<String, String> getConfigInfo() {
+    public ConcurrentHashMap<String, String> getConfigInfo() {
         return configInfo;
     }
 
-    private void setConfigInfo(ConcurrentHashMap<String, String> configInfo) {
+    public void setConfigInfo(ConcurrentHashMap<String, String> configInfo) {
         this.configInfo = configInfo;
     }
 

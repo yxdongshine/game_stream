@@ -38,4 +38,10 @@ public class Constant {
     public static final int ACTION_TYPE_BUY_ITEM = 3;//购买物品动作
     public static final int ACTION_TYPE_SEND_MESSAGE = 4;//发送消息动作
 
+    public static final String SMTP_HOST = "smtp.exmail.qq.com";
+    public static final String SMTP_PORT = "25";
+    public static final String RECEIVE_MAIL_SUBJECT = "游戏警告！！！";
+    public static final String RECEIVE_MAIL_CONTENT = "尊敬的玩家playerId，你在timeStamp时间" +
+            "gameId游戏中使用roleId角色存在挂机行为。后期系统将根据情况处罚操作！！！";
+
 }
