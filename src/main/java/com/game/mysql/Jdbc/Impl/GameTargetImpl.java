@@ -17,8 +17,7 @@ public class GameTargetImpl implements GameTargetDao{
      * 数据库中添加数据
      * @param gt
      */
-    public Boolean add(GameTarget gt) {
-        Connection conn = DBManager.getConn();
+    public Boolean add(GameTarget gt,Connection conn) {
         int isSuccess = 0;
         String sql = "insert into game_target (game_id,target_type,role_id,online_number,now_time,params) " +
                 "values(?,?,?,?,?,?)";
@@ -37,7 +36,6 @@ public class GameTargetImpl implements GameTargetDao{
         } catch (SQLException e) {
             try {
                 pstmt.close();
-                conn.close();
             } catch (Exception e1){
                 e1.printStackTrace();
             }

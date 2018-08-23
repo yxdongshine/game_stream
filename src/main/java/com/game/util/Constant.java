@@ -25,7 +25,11 @@ public class Constant {
     public static final int HANG_UP_WINDOW_LENGTH_SECONDS = 60;//挂机窗口长度
     public static final int HANG_UP_WINDOW_INTERVAL_SECONDS = 50;//挂机窗口滑动时间
     public static final int HANG_UP_SEND_NUM = 30;//一分钟发送挂机消息 次数上限
+    public static final int REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS = 60;//实时指标窗口长度
+    public static final int REAL_TIME_TARGET_INTERVAL_SECONDS = 50;//实时指标滑动时间
+    public static final String REAL_TIME_TARGET_SESSION_NUMBER_KEY = "session_number_";//在线回话数量key
 
+    public static final String SYSTEM_DELIMITED_SYMBOL = "_";//系统app redis前缀
     public static final String SYSTEM_PREFIX = "GAME_";//系统app redis前缀
     public static final String BLACK_LIST_KEY = "black_list";//黑名单key
     public static final String WHITE_LIST_KEY = "white_list";//白名单key
@@ -43,5 +47,8 @@ public class Constant {
     public static final String RECEIVE_MAIL_SUBJECT = "游戏警告！！！";
     public static final String RECEIVE_MAIL_CONTENT = "尊敬的玩家playerId，你在timeStamp时间" +
             "gameId游戏中使用roleId角色存在挂机行为。后期系统将根据情况处罚操作！！！";
+
+    public static final int TARGET_TYPE_PLAYER = 1;//1 游戏玩家；2 角色
+    public static final int TARGET_TYPE_ROLE = 2;//1 游戏玩家；2 角色
 
 }

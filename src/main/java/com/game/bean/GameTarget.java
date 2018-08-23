@@ -12,6 +12,20 @@ public class GameTarget {
     private Long nowTime;//此时时间戳
     private String params;// 备用参数
 
+    public void GameTarget(int gameId,
+                           int targetType,
+                           Long roleId,
+                           int onlineNumber,
+                           Long nowTime,
+                           String params){
+        this.gameId = gameId;
+        this.targetType = targetType;
+        this.roleId = roleId;
+        this.onlineNumber = onlineNumber;
+        this.nowTime = nowTime;
+        this.params = params;
+    }
+
     public int getGameId() {
         return gameId;
     }

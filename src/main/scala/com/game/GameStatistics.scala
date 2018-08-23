@@ -6,9 +6,13 @@ import com.alibaba.fastjson.{JSONObject, JSON}
 import com.game.InnerGate.InnerConnectPool
 import com.game.Mail.{MailBody, MailAccount, MailUtils}
 import com.game.RedisPool.RedisUtils
+import com.game.bean.GameTarget
 import com.game.instance.{SensitiveVocabularyList, WhiteList}
+import com.game.mysql.Jdbc.Dao.GameTargetDao
+import com.game.mysql.Jdbc.Impl.GameTargetImpl
+import com.game.mysql.dbcp.DBManager
 import com.game.systeminfrastructure.SingleChannel
-import com.game.util.Constant
+import com.game.util.{DateUtil, Constant}
 import kafka.serializer.StringDecoder
 import org.apache.spark.SparkConf
 import org.apache.spark.broadcast.Broadcast
@@ -285,7 +289,119 @@ class GameStatistics {
       }
     })
 
+    /**
+     * 实时数据图展示
+     *   某游戏某时刻玩家在线数量
+     *   某游戏某时刻某角色使用数量
+     */
+    //实时在线玩家游戏number
+    messageFormattedFilterStream.map(rdd =>{
+      ((rdd.gameId,rdd.playerId),1)
+    })
+    .reduceByKeyAndWindow(
+        (beforeValue:Int , nowValue:Int) => {
+          beforeValue + nowValue
+        },
+        Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
+        Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
+      )
+    .map(rdd =>{
+      rdd match {
+        case ((Int,Long),Int) =>{
+          (rdd._1._1, 1)//游戏gameid game数量
+        }
+      }
+    })
+    .reduceByKey((beforeValue:Int , nowValue:Int) =>{beforeValue + nowValue})
+    .foreachRDD(rdd =>{
+      rdd.foreachPartition(partitionRecords =>{
+        //优化方式
+        val conn = DBManager.getConn
+        partitionRecords.foreach(record => {
+          val gt = {
+            new GameTarget(record._1, Constant.TARGET_TYPE_PLAYER, "", record._2, DateUtil.getSystemTime,"")
+          }
+          val gtDao = new GameTargetImpl()
+          gtDao.add(gt,conn)
+        })
+        //这里关闭连接池
+        DBManager.closeConn(conn)
+      })
+    })
 
+    //实时在线角色受欢迎度 数量
+    messageFormattedFilterStream.map(rdd =>{
+      ((rdd.gameId,rdd.sessionId),rdd.roleId)
+    })
+    .groupByKeyAndWindow(
+        Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
+        Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
+      )
+    .map(rdd =>{
+      ((rdd._1._1,rdd._2.toList.distinct.head),1)
+    })
+    .reduceByKeyAndWindow(
+        (beforeValue:Int,nowValue:Int) =>{
+          beforeValue + nowValue
+        },
+        Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
+        Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
+      )
+      .foreachRDD(rdd =>{
+      rdd.foreachPartition(partitionRecords =>{
+        //优化方式
+        val conn = DBManager.getConn
+        partitionRecords.foreach(record => {
+          val gt = {
+            new GameTarget(record._1._1, Constant.TARGET_TYPE_ROLE, record._1._2, record._2, DateUtil.getSystemTime,"")
+          }
+          val gtDao = new GameTargetImpl()
+          gtDao.add(gt,conn)
+        })
+        //这里关闭连接池
+        DBManager.closeConn(conn)
+      })
+    })
+
+    //实时统计该游戏累积玩家数量
+    messageFormattedFilterStream.map(rdd =>{
+      ((rdd.gameId,rdd.sessionId),rdd.playerId)
+    })
+    .groupByKeyAndWindow(
+      Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
+      Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
+    )
+    .map(rdd =>{
+      ((rdd),1)
+    })
+    .updateStateByKey((values: Seq[Int], state: Option[(Long, Int)]) =>{
+      // 1. 获取当前key传递的值
+      val currentValue = values.sum
+
+      // 2. 获取状态值
+      val preValue = state.getOrElse((0L, 0))._1
+      val preState = state.getOrElse((0L, 0))._2
+      // 3. 更新状态值
+      if (currentValue == 0) {
+        Some((preValue + currentValue, preState + 1))
+      } else {
+        // 有新数据
+        Some((preValue + currentValue, 0))
+      }
+    })
+    .map(rdd =>{
+      (rdd._1,rdd._2._1)
+    })
+    .foreachRDD(rdd =>{
+      rdd.foreachPartition(partitionRecords => {
+        partitionRecords.foreach(record => {
+          //因为在线人数指标只会一个值
+          val key = Constant.SYSTEM_PREFIX + Constant.REAL_TIME_TARGET_SESSION_NUMBER_KEY +
+          record._1._1 + Constant.SYSTEM_DELIMITED_SYMBOL +record._1._2
+          RedisUtils.set(key,record._2.toString)
+        })
+      })
+    })
 
     //
     //
