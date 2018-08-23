@@ -7,7 +7,7 @@ import com.game.InnerGate.InnerConnectPool
 import com.game.Mail.{MailBody, MailAccount, MailUtils}
 import com.game.RedisPool.RedisUtils
 import com.game.bean.GameTarget
-import com.game.instance.{SensitiveVocabularyList, WhiteList}
+import com.game.instance.{LogInstance, SensitiveVocabularyList, WhiteList}
 import com.game.mysql.Jdbc.Dao.GameTargetDao
 import com.game.mysql.Jdbc.Impl.GameTargetImpl
 import com.game.mysql.dbcp.DBManager
@@ -71,49 +71,16 @@ class GameStatistics {
   }
 
   /**
-   * 处理的数据流及checkpoint配置 rdd数据及操作方法等
+   * 格式化数据流
+   * @param messagedStream
    * @return
    */
-  def createCheckPointStreamContext():StreamingContext ={
-    val ssc = createSsc
-    val pt = initKafka()
-    //创建stream
-    val dStream:InputDStream[(String, String)] = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, pt._1,pt._2)
-    //下面开始处理流 同时也是为了rdd 和 元数据的checkpoint
-    //设置stream checkpoint时间
-    dStream.checkpoint(Seconds(5 * Constant.BATCH_SECONDS))
-    //对于数据流来说 目前只需要value，针对分区的key暂时不处理
-    val messagedStream: DStream[String] = dStream.map(_._2)
-    //第一步消息格式化
-    val messageFormattedStream: DStream[GameMessage] = messagedStream.map(line => {
-        // 解析成GameMessage类
-        val jsonObj: JSONObject = JSON.parseObject(line.toString)
-        jsonObj match {
-          case JSONObject =>{
-            Some(
-              GameMessage(
-                jsonObj.getString("key"),
-                jsonObj.getLong("index"),
-                jsonObj.getInteger("gameId"),
-                jsonObj.getLong("playerId"),
-                jsonObj.getLong("roleId"),
-                jsonObj.getLong("sessionId"),
-                jsonObj.getLong("mapId"),
-                jsonObj.getLong("timeStamp"),
-                jsonObj.getInteger("actionType"),
-                jsonObj.getLong("itemId"),
-                jsonObj.getInteger("monsterType"),
-                jsonObj.getLong("monsterId"),
-                jsonObj.getLong("attackedRoleId"),
-                jsonObj.getString("mesContent")
-              )
-            )
-          }
-          case _ => None
-        }
-        /*if (jsonObj.isEmpty) {
-          None
-        } else {
+  def messageFormattedStreamFun(messagedStream: DStream[String]): DStream[GameMessage] ={
+      messagedStream.map(line => {
+      // 解析成GameMessage类
+      val jsonObj: JSONObject = JSON.parseObject(line.toString)
+      jsonObj match {
+        case JSONObject =>{
           Some(
             GameMessage(
               jsonObj.getString("key"),
@@ -132,65 +99,94 @@ class GameStatistics {
               jsonObj.getString("mesContent")
             )
           )
-        }*/
+        }
+        case _ => None
+      }
+      /*if (jsonObj.isEmpty) {
+        None
+      } else {
+        Some(
+          GameMessage(
+            jsonObj.getString("key"),
+            jsonObj.getLong("index"),
+            jsonObj.getInteger("gameId"),
+            jsonObj.getLong("playerId"),
+            jsonObj.getLong("roleId"),
+            jsonObj.getLong("sessionId"),
+            jsonObj.getLong("mapId"),
+            jsonObj.getLong("timeStamp"),
+            jsonObj.getInteger("actionType"),
+            jsonObj.getLong("itemId"),
+            jsonObj.getInteger("monsterType"),
+            jsonObj.getLong("monsterId"),
+            jsonObj.getLong("attackedRoleId"),
+            jsonObj.getString("mesContent")
+          )
+        )
+      }*/
     })
-    .filter(_.isDefined) //不为空(None)的元素
-    .map(_.get)
+      .filter(_.isDefined) //不为空(None)的元素
+      .map(_.get)
+  }
 
-    //判定黑名单操作
-    /**
-     * 1.将每一条记录value设置为1
-     * 2.窗口实时统计
-     * 3.元祖 value大于X次的数据为恶意操作
-     * 4.广播过滤掉白名单
-     * 5.分区写入redis
-     */
+  /**
+   * 判定黑名单操作
+   * /**
+   * 1.将每一条记录value设置为1
+   * 2.窗口实时统计
+   * 3.元祖 value大于X次的数据为恶意操作
+   * 4.广播过滤掉白名单
+   * 5.分区写入redis
+   */
+   * @param messageFormattedStream
+   */
+  def determineBlackListFun(messageFormattedStream: DStream[GameMessage]) = {
     messageFormattedStream.map(gm => {
       (gm.playerId,1)
     })
-    .reduceByKeyAndWindow(
+      .reduceByKeyAndWindow(
         (beforeValue:Int,afterValue:Int) =>{ beforeValue + afterValue},
         Seconds(Constant.BLACK_LIST_WINDOW_LENGTH_SECONDS),//窗口长度
         Seconds(Constant.BLACK_LIST_WINDOW_INTERVAL_SECONDS)//滑动距离
       )
-    .filter(tuple => tuple._2 >= Constant.MALICIOUS_ATTACK_PLAYER_SEND_NUM)
-    .transform(//.foreachRDD( //这里是可以用foreachRDD 但是只能用一次，后面保存操作没法用
-      rdd => {
-        //获取白名单
-        val whitePlayerList: Broadcast[mutable.Set[String]] = WhiteList.getInstance(rdd.sparkContext)
-        rdd match {
-          case (Long, Int) => {
-            rdd.filter(rdd => whitePlayerList.value.contains(rdd._1.toString))
+      .filter(tuple => tuple._2 >= Constant.MALICIOUS_ATTACK_PLAYER_SEND_NUM)
+      .transform(//.foreachRDD( //这里是可以用foreachRDD 但是只能用一次，后面保存操作没法用
+        rdd => {
+          //获取白名单
+          val whitePlayerList: Broadcast[mutable.Set[String]] = WhiteList.getInstance(rdd.sparkContext)
+          rdd match {
+            case (Long, Int) => {
+              rdd.filter(rdd => whitePlayerList.value.contains(rdd._1.toString))
+            }
           }
         }
-      }
       )
-    .foreachRDD(//这里就是每个区含有的黑名单数据
-      rdd => {
-        rdd.foreachPartition(
-          partitionOfRecords =>{
-            //优化方式一：这里优化每个区获取一次redis连接
+      .foreachRDD(//这里就是每个区含有的黑名单数据
+        rdd => {
+          rdd.foreachPartition(
+            partitionOfRecords =>{
+              //优化方式一：这里优化每个区获取一次redis连接
 
-            //优化方式二：整个分区组成集合写入redis
-            var blackPlayerList:mutable.Set[String] = mutable.Set()
-            partitionOfRecords.foreach(record => {
-              blackPlayerList.+=(record._1.toString)
-            })
-            // 这里更新黑名单
-            RedisUtils.sAdd(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY,JavaConversions.asJavaSet(blackPlayerList))
-          }
-        )
-      }
+              //优化方式二：整个分区组成集合写入redis
+              var blackPlayerList:mutable.Set[String] = mutable.Set()
+              partitionOfRecords.foreach(record => {
+                blackPlayerList.+=(record._1.toString)
+              })
+              // 这里更新黑名单
+              RedisUtils.sAdd(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY,JavaConversions.asJavaSet(blackPlayerList))
+            }
+          )
+        }
       )
+  }
 
-    /**
-     * 将黑名单数据过滤掉
-     *  1.transform 将流内数据转换 获取RedisUtils 黑名单列表数据
-     *  2.match 模式匹配 直接过路
-     *    注意：foreachRDD foreachPartition 只是在输出action优化，其他转换因子都不需要
-     *
-     */
-    val messageFormattedFilterStream: DStream[GameMessage] = messageFormattedStream.transform(
+  /**
+   *  1.transform 将流内数据转换 获取RedisUtils 黑名单列表数据
+   *  2.match 模式匹配 直接过路
+   *    注意：foreachRDD foreachPartition 只是在输出action优化，其他转换因子都不需要
+   */
+  def messageFormattedFilterStreamFun(messageFormattedStream: DStream[GameMessage]): DStream[GameMessage] = {
+    messageFormattedStream.transform(
       rdd => {
         val blackPlayerList: util.Set[String] = RedisUtils.sMembers(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY)
         rdd match {
@@ -200,18 +196,19 @@ class GameStatistics {
         }
       }
     )
+  }
 
-    /**
-     * 实时过滤掉敏感词汇并调用转发session
-     *  1.只要消息actionType=4发送消息的动作
-     *  2.reduceByKeyAndWindow 这里需要减少延时性操作 window：3s；interval：2s
-     *  3.从广播中获取敏感词汇
-     *  4.如果含有就用特殊符号替换
-     *  5.再转发session
-     */
+  /**
+   *  1.只要消息actionType=4发送消息的动作
+   *  2.reduceByKeyAndWindow 这里需要减少延时性操作 window：3s；interval：2s
+   *  3.从广播中获取敏感词汇
+   *  4.如果含有就用特殊符号替换
+   *  5.再转发session
+   */
+  def filterBlackWordsFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.filter(gm =>({
-        Constant.ACTION_TYPE_SEND_MESSAGE == gm.actionType}))
-    .foreachRDD(rdd =>{
+      Constant.ACTION_TYPE_SEND_MESSAGE == gm.actionType}))
+      .foreachRDD(rdd =>{
       //这里获取分布式rdd记录能获取到，因为是广播变量
       val sensitiveVocabularyList:Broadcast[mutable.Set[String]] = SensitiveVocabularyList.getInstance(rdd.sparkContext)
       rdd.foreachPartition(partitionOfRecords =>{
@@ -236,32 +233,33 @@ class GameStatistics {
         })
       })
     })
+  }
 
-    /**
-     *判断是否存在挂机行为
-     * 1.在过滤后的合法数据流里面得到挂机记录
-     * 2.reduceByKeyAndWindow 统计每分钟内出现的次数
-     *    注意：这里需要将value设置数值型
-     * 3.过滤得到大于等于挂机记录判定值
-     * 4.分区发送邮件通知
-      */
+  /**
+   * 1.在过滤后的合法数据流里面得到挂机记录
+   * 2.reduceByKeyAndWindow 统计每分钟内出现的次数
+   *    注意：这里需要将value设置数值型
+   * 3.过滤得到大于等于挂机记录判定值
+   * 4.分区发送邮件通知
+   */
+  def filterHuangUpFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.filter(gm =>{
       Constant.ACTION_TYPE_HANG_UP == gm.actionType
     })
-    .map(gm =>{
+      .map(gm =>{
       ((gm.gameId,gm.playerId,gm.roleId,gm.sessionId,gm.timeStamp,gm.actionType),1)
     })
-    .reduceByKeyAndWindow(
+      .reduceByKeyAndWindow(
         (beforeValue:Int,nowValue:Int) =>{
           beforeValue + nowValue
         },
         Seconds(Constant.HANG_UP_WINDOW_LENGTH_SECONDS),//窗口长度
         Seconds(Constant.HANG_UP_WINDOW_INTERVAL_SECONDS)//滑动间隔
       )
-    .filter(tuple =>{//得到挂机人员
+      .filter(tuple =>{//得到挂机人员
       tuple._2 >= Constant.HANG_UP_SEND_NUM
     })
-    .foreachRDD(rdd =>{
+      .foreachRDD(rdd =>{
       rdd match {
         case ((Int,Long,Long,Long,Long,Int),Int) =>{
           rdd.foreachPartition(partitionOfRecords =>{
@@ -288,32 +286,32 @@ class GameStatistics {
         }
       }
     })
+  }
 
-    /**
-     * 实时数据图展示
-     *   某游戏某时刻玩家在线数量
-     *   某游戏某时刻某角色使用数量
-     */
-    //实时在线玩家游戏number
+  /**
+   * 实时数据图展示
+   *   某游戏某时刻玩家在线数量
+   */
+  def realTimePlayerTargetFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.map(rdd =>{
       ((rdd.gameId,rdd.playerId),1)
     })
-    .reduceByKeyAndWindow(
+      .reduceByKeyAndWindow(
         (beforeValue:Int , nowValue:Int) => {
           beforeValue + nowValue
         },
         Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
         Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
       )
-    .map(rdd =>{
+      .map(rdd =>{
       rdd match {
         case ((Int,Long),Int) =>{
           (rdd._1._1, 1)//游戏gameid game数量
         }
       }
     })
-    .reduceByKey((beforeValue:Int , nowValue:Int) =>{beforeValue + nowValue})
-    .foreachRDD(rdd =>{
+      .reduceByKey((beforeValue:Int , nowValue:Int) =>{beforeValue + nowValue})
+      .foreachRDD(rdd =>{
       rdd.foreachPartition(partitionRecords =>{
         //优化方式
         val conn = DBManager.getConn
@@ -328,19 +326,24 @@ class GameStatistics {
         DBManager.closeConn(conn)
       })
     })
+  }
 
-    //实时在线角色受欢迎度 数量
+  /**
+   * 实时数据图展示
+   *   某游戏某时刻某角色使用数量
+   */
+  def realTimeRoleTargetFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.map(rdd =>{
       ((rdd.gameId,rdd.sessionId),rdd.roleId)
     })
-    .groupByKeyAndWindow(
+      .groupByKeyAndWindow(
         Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
         Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
       )
-    .map(rdd =>{
+      .map(rdd =>{
       ((rdd._1._1,rdd._2.toList.distinct.head),1)
     })
-    .reduceByKeyAndWindow(
+      .reduceByKeyAndWindow(
         (beforeValue:Int,nowValue:Int) =>{
           beforeValue + nowValue
         },
@@ -362,19 +365,24 @@ class GameStatistics {
         DBManager.closeConn(conn)
       })
     })
+  }
 
-    //实时统计该游戏累积玩家数量
+  /**
+   *
+   * @param messageFormattedFilterStream
+   */
+  def realTimeSumSesssionTargetFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.map(rdd =>{
       ((rdd.gameId,rdd.sessionId),rdd.playerId)
     })
-    .groupByKeyAndWindow(
-      Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
-      Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
-    )
-    .map(rdd =>{
+      .groupByKeyAndWindow(
+        Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
+        Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
+      )
+      .map(rdd =>{
       ((rdd),1)
     })
-    .updateStateByKey((values: Seq[Int], state: Option[(Long, Int)]) =>{
+      .updateStateByKey((values: Seq[Int], state: Option[(Long, Int)]) =>{
       // 1. 获取当前key传递的值
       val currentValue = values.sum
 
@@ -389,21 +397,61 @@ class GameStatistics {
         Some((preValue + currentValue, 0))
       }
     })
-    .map(rdd =>{
+      .map(rdd =>{
       (rdd._1,rdd._2._1)
     })
-    .foreachRDD(rdd =>{
+      .foreachRDD(rdd =>{
       rdd.foreachPartition(partitionRecords => {
         partitionRecords.foreach(record => {
           //因为在线人数指标只会一个值
           val key = Constant.SYSTEM_PREFIX + Constant.REAL_TIME_TARGET_SESSION_NUMBER_KEY +
-          record._1._1 + Constant.SYSTEM_DELIMITED_SYMBOL +record._1._2
+            record._1._1 + Constant.SYSTEM_DELIMITED_SYMBOL +record._1._2
           RedisUtils.set(key,record._2.toString)
         })
       })
     })
+  }
 
-    //
+  /**
+   * 处理的数据流及checkpoint配置 rdd数据及操作方法等
+   * @return
+   */
+  def createCheckPointStreamContext():StreamingContext ={
+    val ssc = createSsc
+    val pt = initKafka()
+    //创建stream
+    val dStream:InputDStream[(String, String)] = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, pt._1,pt._2)
+    //下面开始处理流 同时也是为了rdd 和 元数据的checkpoint
+    //设置stream checkpoint时间
+    dStream.checkpoint(Seconds(5 * Constant.BATCH_SECONDS))
+    //对于数据流来说 目前只需要value，针对分区的key暂时不处理
+    val messagedStream: DStream[String] = dStream.map(_._2)
+    //第一步消息格式化
+    val messageFormattedStream: DStream[GameMessage] = messageFormattedStreamFun(messagedStream)
+    /**
+     * 先测试大数据量下kafka数据丢失问题
+     */
+    messageFormattedStream.foreachRDD(rdd =>{
+      rdd.foreachPartition(partitionRecords =>{
+        partitionRecords.foreach(record =>{
+          LogInstance.getInstance().info(""+record.index)
+        })
+      })
+    })
+    //第二步判定黑名单操作
+    //determineBlackListFun(messageFormattedStream)
+    //第三步将黑名单数据过滤掉
+    //val messageFormattedFilterStream: DStream[GameMessage] = messageFormattedFilterStreamFun(messageFormattedStream)
+    //第四步实时过滤掉敏感词汇并调用转发session
+    //filterBlackWordsFun(messageFormattedFilterStream)
+    //第五步判断是否存在挂机行为
+    //filterHuangUpFun(messageFormattedFilterStream)
+    //第六步实时在线玩家游戏number
+    //realTimePlayerTargetFun(messageFormattedFilterStream)
+    //第七步实时在线角色受欢迎度 数量
+    //realTimeRoleTargetFun(messageFormattedFilterStream)
+    //第八步实时统计该游戏累积玩家数量
+    //realTimeSumSesssionTargetFun(messageFormattedFilterStream)
     //
     //最后也要返回StreamingContext
     ssc
