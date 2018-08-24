@@ -12,7 +12,7 @@ public class GameTarget {
     private Long nowTime;//此时时间戳
     private String params;// 备用参数
 
-    public void GameTarget(int gameId,
+    public GameTarget(int gameId,
                            int targetType,
                            Long roleId,
                            int onlineNumber,
@@ -24,6 +24,15 @@ public class GameTarget {
         this.onlineNumber = onlineNumber;
         this.nowTime = nowTime;
         this.params = params;
+    }
+
+    public static GameTarget getInstance(int gameId,
+                                  int targetType,
+                                  Long roleId,
+                                  int onlineNumber,
+                                  Long nowTime,
+                                  String params){
+        return new GameTarget(gameId, targetType,roleId,onlineNumber,nowTime,params);
     }
 
     public int getGameId() {

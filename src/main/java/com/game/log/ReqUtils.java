@@ -1,7 +1,7 @@
 package com.game.log;
 
-import com.ecaray.util.IDGenerator;
-import com.ecaray.util.StringUtil;
+import com.game.util.IDGenerator;
+import com.game.util.StrUtil;
 
 public class ReqUtils {
 	private static ThreadLocal<String> rid = new ThreadLocal();
@@ -13,7 +13,7 @@ public class ReqUtils {
 
 	public static void initRId(ParaMap paramParaMap) {
 		String str = paramParaMap.getString(ridKey);
-		if (StringUtil.isNull(str))
+		if (StrUtil.isNull(str))
 			str = IDGenerator.newNo("R");
 		rid.set(str);
 	}

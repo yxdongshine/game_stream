@@ -145,7 +145,7 @@
     </profiles>
 
     <build>
-        <sourceDirectory>src/main/scala</sourceDirectory>
+        <!--<sourceDirectory>src/main/scala</sourceDirectory>-->
         <plugins>
 
             <plugin>

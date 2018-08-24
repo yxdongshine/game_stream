@@ -14,7 +14,8 @@ import com.game.mysql.dbcp.DBManager
 import com.game.systeminfrastructure.SingleChannel
 import com.game.util.{DateUtil, Constant}
 import kafka.serializer.StringDecoder
-import org.apache.spark.SparkConf
+import org.apache.spark.rdd.RDD
+import org.apache.spark.{rdd, SparkConf}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
@@ -79,8 +80,8 @@ class GameStatistics {
       messagedStream.map(line => {
       // 解析成GameMessage类
       val jsonObj: JSONObject = JSON.parseObject(line.toString)
-      jsonObj match {
-        case JSONObject =>{
+     /* jsonObj match {
+        case jsonObj.isInstanceOf =>{
           Some(
             GameMessage(
               jsonObj.getString("key"),
@@ -101,8 +102,8 @@ class GameStatistics {
           )
         }
         case _ => None
-      }
-      /*if (jsonObj.isEmpty) {
+      }*/
+      if (jsonObj.isEmpty) {
         None
       } else {
         Some(
@@ -123,7 +124,7 @@ class GameStatistics {
             jsonObj.getString("mesContent")
           )
         )
-      }*/
+      }
     })
       .filter(_.isDefined) //不为空(None)的元素
       .map(_.get)
@@ -154,11 +155,7 @@ class GameStatistics {
         rdd => {
           //获取白名单
           val whitePlayerList: Broadcast[mutable.Set[String]] = WhiteList.getInstance(rdd.sparkContext)
-          rdd match {
-            case (Long, Int) => {
-              rdd.filter(rdd => whitePlayerList.value.contains(rdd._1.toString))
-            }
-          }
+          rdd.filter(rdd => whitePlayerList.value.contains(rdd._1.toString))
         }
       )
       .foreachRDD(//这里就是每个区含有的黑名单数据
@@ -189,11 +186,7 @@ class GameStatistics {
     messageFormattedStream.transform(
       rdd => {
         val blackPlayerList: util.Set[String] = RedisUtils.sMembers(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY)
-        rdd match {
-          case GameMessage => {
-            rdd.filter(rdd => blackPlayerList.contains(rdd.playerId))
-          }
-        }
+        rdd.filter(rdd => blackPlayerList.contains(rdd.playerId))
       }
     )
   }
@@ -260,31 +253,27 @@ class GameStatistics {
       tuple._2 >= Constant.HANG_UP_SEND_NUM
     })
       .foreachRDD(rdd =>{
-      rdd match {
-        case ((Int,Long,Long,Long,Long,Int),Int) =>{
-          rdd.foreachPartition(partitionOfRecords =>{
-            //这里调用邮件实体类
-            val account = new MailAccount();
-            account.setAccount(SingleChannel.getConfig("send_mail_account"));
-            account.setPassword(SingleChannel.getConfig("send_mail_password"));
-            account.setSmtpHost(Constant.SMTP_HOST);
-            account.setSmtpPort(Constant.SMTP_PORT);
-            val instance = MailUtils.newInstance(account)
-            partitionOfRecords.map(record =>{
-              //发送每一条邮件
-              val mailBody = new MailBody();
-              mailBody.setSubject(Constant.RECEIVE_MAIL_SUBJECT);
-              val warnContent = Constant.RECEIVE_MAIL_CONTENT
-                .replace("playerId",record._1._2.toString)
-                .replace("timeStamp",record._1._5.toString)
-                .replace("gameId",record._1._1.toString)
-                .replace("roleId",record._1._3.toString)
-              mailBody.setContent(warnContent)
-              instance.send(SingleChannel.getConfig("send_mail_account"),mailBody)
-            })
+        rdd.foreachPartition(partitionOfRecords =>{
+          //这里调用邮件实体类
+          val account = new MailAccount();
+          account.setAccount(SingleChannel.getConfig("send_mail_account"));
+          account.setPassword(SingleChannel.getConfig("send_mail_password"));
+          account.setSmtpHost(Constant.SMTP_HOST);
+          account.setSmtpPort(Constant.SMTP_PORT);
+          val instance = MailUtils.newInstance(account)
+          partitionOfRecords.map(record =>{
+            //发送每一条邮件
+            val mailBody = new MailBody();
+            mailBody.setSubject(Constant.RECEIVE_MAIL_SUBJECT);
+            val warnContent = Constant.RECEIVE_MAIL_CONTENT
+              .replace("playerId",record._1._2.toString)
+              .replace("timeStamp",record._1._5.toString)
+              .replace("gameId",record._1._1.toString)
+              .replace("roleId",record._1._3.toString)
+            mailBody.setContent(warnContent)
+            instance.send(SingleChannel.getConfig("send_mail_account"),mailBody)
           })
-        }
-      }
+        })
     })
   }
 
@@ -296,19 +285,15 @@ class GameStatistics {
     messageFormattedFilterStream.map(rdd =>{
       ((rdd.gameId,rdd.playerId),1)
     })
-      .reduceByKeyAndWindow(
-        (beforeValue:Int , nowValue:Int) => {
-          beforeValue + nowValue
-        },
-        Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
-        Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
-      )
-      .map(rdd =>{
-      rdd match {
-        case ((Int,Long),Int) =>{
-          (rdd._1._1, 1)//游戏gameid game数量
-        }
-      }
+    .reduceByKeyAndWindow(
+      (beforeValue:Int , nowValue:Int) => {
+        beforeValue + nowValue
+      },
+      Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
+      Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
+    )
+    .map(rdd =>{
+        (rdd._1._1, 1)//游戏gameid game数量
     })
       .reduceByKey((beforeValue:Int , nowValue:Int) =>{beforeValue + nowValue})
       .foreachRDD(rdd =>{
@@ -317,7 +302,7 @@ class GameStatistics {
         val conn = DBManager.getConn
         partitionRecords.foreach(record => {
           val gt = {
-            new GameTarget(record._1, Constant.TARGET_TYPE_PLAYER, "", record._2, DateUtil.getSystemTime,"")
+            new GameTarget(record._1, Constant.TARGET_TYPE_PLAYER, -1L, record._2, DateUtil.getSystemTime,"")
           }
           val gtDao = new GameTargetImpl()
           gtDao.add(gt,conn)

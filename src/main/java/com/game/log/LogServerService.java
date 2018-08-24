@@ -6,10 +6,10 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 
+import com.game.util.StrUtil;
 import org.apache.commons.io.FileUtils;
 
 import com.alibaba.fastjson.JSONObject;
-import com.ecaray.util.StringUtil;
 
 public class LogServerService {
 	@SuppressWarnings("rawtypes")
@@ -66,7 +66,7 @@ public class LogServerService {
 
 	public String getFilePath(String paramString) {
 		String str1 = "D:\\fileroot";
-		if (StringUtil.isNull(str1))
+		if (StrUtil.isNull(str1))
 			str1 = "/app/fileRoot/logs";
 		SimpleDateFormat localSimpleDateFormat = new SimpleDateFormat(
 				"YYYYMMdd");

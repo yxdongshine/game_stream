@@ -1,24 +1,21 @@
 package com.game.log;
 
 import java.math.BigDecimal;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import com.game.util.DateUtil;
+import com.game.util.StrUtil;
 import org.apache.log4j.Logger;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.alibaba.fastjson.serializer.ValueFilter;
-import com.ecaray.util.DateUtils;
-import com.ecaray.util.StringUtil;
 
-
-public class ParaMap extends TreeMap{
+public class ParaMap extends TreeMap<Object,Object>{
 	private static final Logger log = Logger.getLogger(ParaMap.class);
 	private static final long serialVersionUID = 1L;
 	private static final String boolTrueValue = "true;1;yes;ok";
@@ -125,7 +122,7 @@ public class ParaMap extends TreeMap{
 	public Date getDate(String paramString) {
 		if (containsKey(paramString)) {
 			String str = getString(paramString);
-			return DateUtils.getDate(str);
+			return DateUtil.getDate(str);
 		}
 		return null;
 	}
@@ -218,7 +215,7 @@ public class ParaMap extends TreeMap{
 
 	public Integer getRecordInteger(int paramInt1, int paramInt2) {
 		String str = getRecordString(paramInt1, paramInt2);
-		if ((StringUtil.isNull(str)) || (!(StringUtil.isInteger(str))))
+		if ((StrUtil.isNull(str)) || (!(StrUtil.isInteger(str))))
 			return null;
 		return Integer.valueOf(Integer.parseInt(str));
 	}
@@ -248,7 +245,7 @@ public class ParaMap extends TreeMap{
 
 	public Double getRecordDouble(int paramInt1, int paramInt2) {
 		String str = getRecordString(paramInt1, paramInt2);
-		if (StringUtil.isNull(str))
+		if (StrUtil.isNull(str))
 			return null;
 		BigDecimal localBigDecimal = new BigDecimal(str);
 		return Double.valueOf(localBigDecimal.doubleValue());
