@@ -54,7 +54,7 @@ class GameStatistics {
 
   def createSsc():StreamingContext ={
     val conf = new SparkConf()
-    .setMaster("local[*]")
+    //.setMaster("local[*]")
     .setAppName(Constant.APP_NAME)
     val ssc = new StreamingContext(conf,Seconds(Constant.BATCH_SECONDS))
     //设置Checkpointing 主要checkpoint 配置等
@@ -442,9 +442,27 @@ class GameStatistics {
     ssc
   }
 
-  def main(args: Array[String]) {
+  /* def main(args: Array[String]): Unit = {
+     //checkpoint目录和创建的匿名函数
+     val ssc = StreamingContext.getOrCreate(Constant.CHECK_POINT_PATH,() => createCheckPointStreamContext())
+     ssc.start();//启动实时流
+     ssc.awaitTermination();//等待认为中断 一直监听
+   }*/
+}
+
+object GameStatistics{
+  /**
+   * 派生构造方法
+   * 参考文献：https://blog.csdn.net/kang123488/article/details/77045159
+   * @return
+   */
+  def apply():GameStatistics = {
+    new GameStatistics
+  }
+
+  def main(args: Array[String]): Unit = {
     //checkpoint目录和创建的匿名函数
-    val ssc = StreamingContext.getOrCreate(Constant.CHECK_POINT_PATH,() => createCheckPointStreamContext())
+    val ssc = StreamingContext.getOrCreate(Constant.CHECK_POINT_PATH,() => GameStatistics().createCheckPointStreamContext())
     ssc.start();//启动实时流
     ssc.awaitTermination();//等待认为中断 一直监听
   }
