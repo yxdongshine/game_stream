@@ -16,6 +16,7 @@ public class Constant {
     public static final String APP_NAME = "GameStatistics" ;
     public static final String CHECK_POINT_PATH = "/tmp/sparkStream/GameStatistics";
     public static final String ZOOKEEPER_CONNECT = "hadoop0:2181,w100:2181,hadoop81:2181";
+    public static final String KAFKA_CONNECT = "hadoop0:9092,w100:9092,hadoop81:9092";
     public static final String GROUP_ID = "GameStatistics_group";
 
     public static final int BATCH_SECONDS = 1;//stream 批次时间 1s

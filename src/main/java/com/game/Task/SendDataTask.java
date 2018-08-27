@@ -28,6 +28,7 @@ public class SendDataTask implements Runnable {
 				gmList.clear();
 			}
 		}
+
 	}
 
 	public Long getIndexStart() {

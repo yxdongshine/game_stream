@@ -45,7 +45,7 @@ public class kafkaProducer {
      */
     public static ProducerConfig init(){
         Properties props = new Properties();
-        props.put("metadata.broker.list", Constant.ZOOKEEPER_CONNECT);
+        props.put("metadata.broker.list", Constant.KAFKA_CONNECT);
         props.put("serializer.class", "kafka.serializer.StringEncoder");
         if(Constant.isSync){//同步
             props.put("producer.type", "sync");
@@ -89,6 +89,7 @@ public class kafkaProducer {
         }
         //批量发送
         producer.send(keyedMessageList);
+        System.out.println("发送条数："+keyedMessageList.size());
     }
 
 

@@ -23,7 +23,7 @@ import org.apache.spark.streaming.kafka.{KafkaUtils}
 
 import scala.collection.immutable.IndexedSeq
 import scala.collection.{JavaConversions, mutable}
-
+import org.apache.kafka.clients.consumer.ConsumerConfig
 /**
  * Created by YXD on 2018/8/11.
  *
@@ -64,8 +64,10 @@ class GameStatistics {
 
   def initKafka(): (Map[String, String], Set[String]) = {
     val params = Map(
-      "zookeeper.connect" -> Constant.ZOOKEEPER_CONNECT,
-      "group.id" -> Constant.GROUP_ID
+      "metadata.broker.list" ->Constant.KAFKA_CONNECT,
+      //"zookeeper.connect" -> Constant.ZOOKEEPER_CONNECT,
+      "group.id" -> Constant.GROUP_ID,
+      "auto.offset.reset" -> "latest"
     )
     val topicsSet = Set("gamestream")
     (params,topicsSet)

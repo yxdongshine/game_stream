@@ -1,4 +1,4 @@
-package com.game.kafka.producer;
+package com.game.kafka.simulation;
 
 import com.game.Task.SendDataTask;
 import com.game.executors.ThreadPool;
@@ -6,7 +6,7 @@ import com.game.executors.ThreadPool;
 /**
  * Created by YXD on 2018/8/13.
  */
-public class SendMessageTest {
+public class SendMessage {
 
     public static void main(String[] args) throws Exception{
         multThreadSendDataTest(4,1L,100000L,10);
@@ -20,7 +20,7 @@ public class SendMessageTest {
             Long threadStartNum = start + i * singleThreadSendNum;
             Long threadEndNum = threadStartNum + singleThreadSendNum;
             sdTask.setIndexStart(threadStartNum);
-            sdTask.setIndexStart(threadEndNum);
+            sdTask.setIndexEnd(threadEndNum);
             ThreadPool.getInstance().addTask(sdTask);
         }
     }

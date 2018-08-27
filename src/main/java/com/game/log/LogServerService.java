@@ -65,9 +65,9 @@ public class LogServerService {
 	}
 
 	public String getFilePath(String paramString) {
-		String str1 = "D:\\fileroot";
-		if (StrUtil.isNull(str1))
-			str1 = "/app/fileRoot/logs";
+		String str1 = "/app/module/data";
+		/*if (StrUtil.isNull(str1))
+			str1 = "/app/fileRoot/logs";*/
 		SimpleDateFormat localSimpleDateFormat = new SimpleDateFormat(
 				"YYYYMMdd");
 		String str2 = localSimpleDateFormat.format(new Date());

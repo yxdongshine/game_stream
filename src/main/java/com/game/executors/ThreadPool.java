@@ -27,12 +27,12 @@ public class ThreadPool {
     //添加线程
     public synchronized void addTask(Runnable runnable){
         if (null != runnable)
-            getInstance().getEs().submit(runnable);
+            getEs().submit(runnable);
     }
 
     //关闭线程池
     private void colseThreadPool(){
-        getInstance().getEs().shutdown();
+        getEs().shutdown();
     }
 
     /**
