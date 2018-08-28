@@ -89,7 +89,8 @@ public class kafkaProducer {
         }
         //批量发送
         producer.send(keyedMessageList);
-        System.out.println("发送条数："+keyedMessageList.size());
+        Constant.setSumMessNumber(Long.parseLong(keyedMessageList.size()+""));
+        System.out.println("本次发送条数：" + keyedMessageList.size() + "   ####当前累积条数：" + Constant.getSumMessNumber());
     }
 
 

@@ -52,4 +52,26 @@ public class Constant {
     public static final int TARGET_TYPE_PLAYER = 1;//1 游戏玩家；2 角色
     public static final int TARGET_TYPE_ROLE = 2;//1 游戏玩家；2 角色
 
+    public static  Long SUM_SEND_MESS_NUMBER = 0l;//并发发送消息数量
+
+    /**
+     * 写
+     * @param subVariable
+     * @return
+     */
+    public static Long setSumMessNumber(Long subVariable){
+        synchronized (SUM_SEND_MESS_NUMBER){
+            return SUM_SEND_MESS_NUMBER += subVariable;
+        }
+    }
+
+    /**
+     * 读
+     * @return
+     */
+    public static Long getSumMessNumber(){
+        synchronized (SUM_SEND_MESS_NUMBER){
+            return SUM_SEND_MESS_NUMBER ;
+        }
+    }
 }

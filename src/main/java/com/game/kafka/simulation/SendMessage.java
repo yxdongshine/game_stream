@@ -9,16 +9,16 @@ import com.game.executors.ThreadPool;
 public class SendMessage {
 
     public static void main(String[] args) throws Exception{
-        multThreadSendDataTest(4,1L,100000L,10);
+        multThreadSendDataTest(10,1L,100000000L,10);
     }
 
     public static void multThreadSendDataTest(int threadNum,Long start,Long end,int batchNum) throws Exception{
-        Long singleThreadSendNum = (end - start)/threadNum;
+        Long singleThreadSendNum = (end - start + 1)/threadNum;
         for (int i = 0; i < threadNum; i++) {
             SendDataTask sdTask = new SendDataTask();
             sdTask.setNum(batchNum);//batchNum条发送一次
             Long threadStartNum = start + i * singleThreadSendNum;
-            Long threadEndNum = threadStartNum + singleThreadSendNum;
+            Long threadEndNum = (i + 1) * singleThreadSendNum;
             sdTask.setIndexStart(threadStartNum);
             sdTask.setIndexEnd(threadEndNum);
             ThreadPool.getInstance().addTask(sdTask);

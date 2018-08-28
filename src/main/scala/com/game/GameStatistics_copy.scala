@@ -1,6 +1,8 @@
+/*
 package scala.com.game
 
 import java.util
+
 import com.alibaba.fastjson.{JSONObject, JSON}
 import com.game.InnerGate.InnerConnectPool
 import com.game.Mail.{MailBody, MailAccount, MailUtils}
@@ -23,17 +25,38 @@ import org.apache.spark.streaming.kafka.{KafkaUtils}
 import scala.collection.immutable.IndexedSeq
 import scala.collection.{JavaConversions, mutable}
 import org.apache.kafka.clients.consumer.ConsumerConfig
-
-
 /**
- * Created by YXD on 2018/8/28.
+ * Created by YXD on 2018/8/11.
+ *
+ * 指标类容：
+ *  1.实时更新某玩家恶意攻击-黑名单操作
+ *    （playerid） 我们规定在一分钟之内点击数超过X次就为恶意攻击
+ *    （广播变量-排除白名单）
+ *  2.过滤掉黑名单产生的行为
+ *  3.实时过滤消息内容敏感词汇（实时消息频道推送及屏蔽敏感词汇）
+ *  4.实时统计是否存在挂机行为（实时邮件通知）
+ *  5.实时数据图展示
+ *    某游戏某时刻玩家在线数量
+ *    某游戏某时刻某角色使用数量
+ *  /**
+ *  * 下面指标离线统计好些
+ *  */
+ *  6.某个游戏某个玩家使用某个角色 游戏时间
+ *    某个游戏某个玩家游戏时间
+ *    某个游戏的活跃时间
+ *  7.某个游戏某个玩家行为特征分析
+ *      攻击主宰时间差及数量
+ *      攻击暴君时间差及数量
+ *      攻击怪物数量
+ *      攻击人物数量
+ *      购买道具数量
  */
-object GameStatistics {
+class GameStatistics_copy {
 
   def createSsc():StreamingContext ={
     val conf = new SparkConf()
-      //.setMaster("local[*]")
-      .setAppName(Constant.APP_NAME)
+    //.setMaster("local[*]")
+    .setAppName(Constant.APP_NAME)
     val ssc = new StreamingContext(conf,Seconds(Constant.BATCH_SECONDS))
     //设置Checkpointing 主要checkpoint 配置等
     ssc.checkpoint(Constant.CHECK_POINT_PATH)
@@ -44,8 +67,8 @@ object GameStatistics {
     val params = Map(
       "metadata.broker.list" ->Constant.KAFKA_CONNECT,
       //"zookeeper.connect" -> Constant.ZOOKEEPER_CONNECT,
-      "group.id" -> Constant.GROUP_ID
-      //"auto.offset.reset" -> "latest"
+      "group.id" -> Constant.GROUP_ID,
+      "auto.offset.reset" -> "latest"
     )
     val topicsSet = Set("gamestream")
     (params,topicsSet)
@@ -57,32 +80,32 @@ object GameStatistics {
    * @return
    */
   def messageFormattedStreamFun(messagedStream: DStream[String]): DStream[GameMessage] ={
-    messagedStream.map(line => {
+      messagedStream.map(line => {
       // 解析成GameMessage类
       val jsonObj: JSONObject = JSON.parseObject(line.toString)
-      /* jsonObj match {
-         case jsonObj.isInstanceOf =>{
-           Some(
-             GameMessage(
-               jsonObj.getString("key"),
-               jsonObj.getLong("index"),
-               jsonObj.getInteger("gameId"),
-               jsonObj.getLong("playerId"),
-               jsonObj.getLong("roleId"),
-               jsonObj.getLong("sessionId"),
-               jsonObj.getLong("mapId"),
-               jsonObj.getLong("timeStamp"),
-               jsonObj.getInteger("actionType"),
-               jsonObj.getLong("itemId"),
-               jsonObj.getInteger("monsterType"),
-               jsonObj.getLong("monsterId"),
-               jsonObj.getLong("attackedRoleId"),
-               jsonObj.getString("mesContent")
-             )
-           )
-         }
-         case _ => None
-       }*/
+     /* jsonObj match {
+        case jsonObj.isInstanceOf =>{
+          Some(
+            GameMessage(
+              jsonObj.getString("key"),
+              jsonObj.getLong("index"),
+              jsonObj.getInteger("gameId"),
+              jsonObj.getLong("playerId"),
+              jsonObj.getLong("roleId"),
+              jsonObj.getLong("sessionId"),
+              jsonObj.getLong("mapId"),
+              jsonObj.getLong("timeStamp"),
+              jsonObj.getInteger("actionType"),
+              jsonObj.getLong("itemId"),
+              jsonObj.getInteger("monsterType"),
+              jsonObj.getLong("monsterId"),
+              jsonObj.getLong("attackedRoleId"),
+              jsonObj.getString("mesContent")
+            )
+          )
+        }
+        case _ => None
+      }*/
       if (jsonObj.isEmpty) {
         None
       } else {
@@ -233,27 +256,27 @@ object GameStatistics {
       tuple._2 >= Constant.HANG_UP_SEND_NUM
     })
       .foreachRDD(rdd =>{
-      rdd.foreachPartition(partitionOfRecords =>{
-        //这里调用邮件实体类
-        val account = new MailAccount();
-        account.setAccount(SingleChannel.getConfig("send_mail_account"));
-        account.setPassword(SingleChannel.getConfig("send_mail_password"));
-        account.setSmtpHost(Constant.SMTP_HOST);
-        account.setSmtpPort(Constant.SMTP_PORT);
-        val instance = MailUtils.newInstance(account)
-        partitionOfRecords.map(record =>{
-          //发送每一条邮件
-          val mailBody = new MailBody();
-          mailBody.setSubject(Constant.RECEIVE_MAIL_SUBJECT);
-          val warnContent = Constant.RECEIVE_MAIL_CONTENT
-            .replace("playerId",record._1._2.toString)
-            .replace("timeStamp",record._1._5.toString)
-            .replace("gameId",record._1._1.toString)
-            .replace("roleId",record._1._3.toString)
-          mailBody.setContent(warnContent)
-          instance.send(SingleChannel.getConfig("send_mail_account"),mailBody)
+        rdd.foreachPartition(partitionOfRecords =>{
+          //这里调用邮件实体类
+          val account = new MailAccount();
+          account.setAccount(SingleChannel.getConfig("send_mail_account"));
+          account.setPassword(SingleChannel.getConfig("send_mail_password"));
+          account.setSmtpHost(Constant.SMTP_HOST);
+          account.setSmtpPort(Constant.SMTP_PORT);
+          val instance = MailUtils.newInstance(account)
+          partitionOfRecords.map(record =>{
+            //发送每一条邮件
+            val mailBody = new MailBody();
+            mailBody.setSubject(Constant.RECEIVE_MAIL_SUBJECT);
+            val warnContent = Constant.RECEIVE_MAIL_CONTENT
+              .replace("playerId",record._1._2.toString)
+              .replace("timeStamp",record._1._5.toString)
+              .replace("gameId",record._1._1.toString)
+              .replace("roleId",record._1._3.toString)
+            mailBody.setContent(warnContent)
+            instance.send(SingleChannel.getConfig("send_mail_account"),mailBody)
+          })
         })
-      })
     })
   }
 
@@ -265,15 +288,15 @@ object GameStatistics {
     messageFormattedFilterStream.map(rdd =>{
       ((rdd.gameId,rdd.playerId),1)
     })
-      .reduceByKeyAndWindow(
-        (beforeValue:Int , nowValue:Int) => {
-          beforeValue + nowValue
-        },
-        Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
-        Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
-      )
-      .map(rdd =>{
-      (rdd._1._1, 1)//游戏gameid game数量
+    .reduceByKeyAndWindow(
+      (beforeValue:Int , nowValue:Int) => {
+        beforeValue + nowValue
+      },
+      Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
+      Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
+    )
+    .map(rdd =>{
+        (rdd._1._1, 1)//游戏gameid game数量
     })
       .reduceByKey((beforeValue:Int , nowValue:Int) =>{beforeValue + nowValue})
       .foreachRDD(rdd =>{
@@ -422,13 +445,32 @@ object GameStatistics {
     ssc
   }
 
+  /* def main(args: Array[String]): Unit = {
+     //checkpoint目录和创建的匿名函数
+     val ssc = StreamingContext.getOrCreate(Constant.CHECK_POINT_PATH,() => createCheckPointStreamContext())
+     ssc.start();//启动实时流
+     ssc.awaitTermination();//等待认为中断 一直监听
+   }*/
+}
+
+object GameStatistics_copy{
+  /**
+   * 派生构造方法
+   * 参考文献：https://blog.csdn.net/kang123488/article/details/77045159
+   * @return
+   */
+  def apply():GameStatistics_copy = {
+    new GameStatistics_copy
+  }
+
   def main(args: Array[String]): Unit = {
     //checkpoint目录和创建的匿名函数
-    val ssc = StreamingContext.getOrCreate(Constant.CHECK_POINT_PATH,() => createCheckPointStreamContext())
+    val ssc = StreamingContext.getOrCreate(Constant.CHECK_POINT_PATH,() => GameStatistics_copy().createCheckPointStreamContext())
     ssc.start();//启动实时流
     ssc.awaitTermination();//等待认为中断 一直监听
   }
 }
+
 
 /**
  * 消息实体类
@@ -448,4 +490,4 @@ case class GameMessage(
                         monsterId: Long ,
                         attackedRoleId: Long,
                         mesContent: String
-                        )
+                        )*/

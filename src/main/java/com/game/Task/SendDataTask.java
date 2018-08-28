@@ -19,14 +19,19 @@ public class SendDataTask implements Runnable {
 	public void run() {
 		// TODO Auto-generated method stub
 		List<GameMessage> gmList = new ArrayList<GameMessage>();
-		for (Long K = indexStart; K < indexEnd ; K++) {
+		for (Long K = indexStart; K <= indexEnd ; K++) {
 			gmList.add(Simulation.createGameMessage(K));
-			if(0 == K % num){
+			if( 0 == K % num
+					&& 0 < gmList.size()){
 				//如果批次间隔次数就发送一次
 				kafkaProducer.getReportProducerInstance().sendListMessage(gmList);
 				// 清空gmList
 				gmList.clear();
 			}
+			/*if(K == (indexEnd-1)) {//最后10条也要发送
+				kafkaProducer.getReportProducerInstance().sendListMessage(gmList);
+				gmList.clear();
+			}*/
 		}
 
 	}
