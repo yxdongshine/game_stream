@@ -80,7 +80,7 @@ public class kafkaProducer {
      * 多条消息发送
      * @param gmList
      */
-    public void sendListMessage(List<GameMessage> gmList){
+    public synchronized void sendListMessage(List<GameMessage> gmList){
         List<KeyedMessage<String, String>> keyedMessageList = new ArrayList<KeyedMessage<String, String>>();
         for (int i=0; i< gmList.size(); i++ ){
             GameMessage gameMessage = gmList.get(i);

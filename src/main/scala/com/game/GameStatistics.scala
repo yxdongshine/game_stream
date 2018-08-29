@@ -34,6 +34,9 @@ object GameStatistics {
     val conf = new SparkConf()
       //.setMaster("local[*]")
       .setAppName(Constant.APP_NAME)
+      .set("spark.default.parallelism","60")
+      .set("spark.streaming.receiver.writeAheadLog.enable","true")
+
     val ssc = new StreamingContext(conf,Seconds(Constant.BATCH_SECONDS))
     //设置Checkpointing 主要checkpoint 配置等
     ssc.checkpoint(Constant.CHECK_POINT_PATH)
