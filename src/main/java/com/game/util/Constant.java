@@ -15,6 +15,7 @@ public class Constant {
      */
     public static final String APP_NAME = "GameStatistics" ;
     public static final String CHECK_POINT_PATH = "/tmp/sparkStream/GameStatistics";
+    //public static final String CHECK_POINT_PATH = "tmp/sparkStream/GameStatistics";
     public static final String ZOOKEEPER_CONNECT = "hadoop0:2181,w100:2181,hadoop81:2181";
     public static final String KAFKA_CONNECT = "hadoop0:9092,w100:9092,hadoop81:9092";
     public static final String GROUP_ID = "GameStatistics_group";
@@ -22,7 +23,7 @@ public class Constant {
     public static final int BATCH_SECONDS = 1;//stream 批次时间 1s
     public static final int BLACK_LIST_WINDOW_LENGTH_SECONDS = 60;//黑名单窗口长度
     public static final int BLACK_LIST_WINDOW_INTERVAL_SECONDS = 50;//黑名单窗口滑动时间
-    public static final int MALICIOUS_ATTACK_PLAYER_SEND_NUM = 100;//Malicious attack 次数上限
+    public static final int MALICIOUS_ATTACK_PLAYER_SEND_NUM = 1;//Malicious attack 次数上限100
     public static final int HANG_UP_WINDOW_LENGTH_SECONDS = 60;//挂机窗口长度
     public static final int HANG_UP_WINDOW_INTERVAL_SECONDS = 50;//挂机窗口滑动时间
     public static final int HANG_UP_SEND_NUM = 30;//一分钟发送挂机消息 次数上限

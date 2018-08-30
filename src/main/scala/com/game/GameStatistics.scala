@@ -24,7 +24,6 @@ import scala.collection.immutable.IndexedSeq
 import scala.collection.{JavaConversions, mutable}
 import org.apache.kafka.clients.consumer.ConsumerConfig
 
-
 /**
  * Created by YXD on 2018/8/28.
  */
@@ -36,6 +35,9 @@ object GameStatistics {
       .setAppName(Constant.APP_NAME)
       .set("spark.default.parallelism","60")
       .set("spark.streaming.receiver.writeAheadLog.enable","true")
+      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+
+    conf.registerKryoClasses(Array(classOf[GameMessage]))
 
     val ssc = new StreamingContext(conf,Seconds(Constant.BATCH_SECONDS))
     //设置Checkpointing 主要checkpoint 配置等
@@ -138,7 +140,7 @@ object GameStatistics {
         rdd => {
           //获取白名单
           val whitePlayerList: Broadcast[mutable.Set[String]] = WhiteList.getInstance(rdd.sparkContext)
-          rdd.filter(rdd => whitePlayerList.value.contains(rdd._1.toString))
+          rdd.filter(rdd => !whitePlayerList.value.contains(rdd._1.toString))
         }
       )
       .foreachRDD(//这里就是每个区含有的黑名单数据
@@ -151,9 +153,12 @@ object GameStatistics {
               var blackPlayerList:mutable.Set[String] = mutable.Set()
               partitionOfRecords.foreach(record => {
                 blackPlayerList.+=(record._1.toString)
+                LogInstance.getInstance().info(""+record._1)
               })
-              // 这里更新黑名单
-              RedisUtils.sAdd(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY,JavaConversions.asJavaSet(blackPlayerList))
+              if(!blackPlayerList.isEmpty){
+                // 这里更新黑名单
+                RedisUtils.sAdd(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY,JavaConversions.asJavaSet(blackPlayerList))
+              }
             }
           )
         }
@@ -399,15 +404,15 @@ object GameStatistics {
     /**
      * 先测试大数据量下kafka数据丢失问题
      */
-    messageFormattedStream.foreachRDD(rdd =>{
+   /* messageFormattedStream.foreachRDD(rdd =>{
       rdd.foreachPartition(partitionRecords =>{
         partitionRecords.foreach(record =>{
           LogInstance.getInstance().info(""+record.index)
         })
       })
-    })
+    })*/
     //第二步判定黑名单操作
-    //determineBlackListFun(messageFormattedStream)
+    determineBlackListFun(messageFormattedStream)
     //第三步将黑名单数据过滤掉
     //val messageFormattedFilterStream: DStream[GameMessage] = messageFormattedFilterStreamFun(messageFormattedStream)
     //第四步实时过滤掉敏感词汇并调用转发session

@@ -13,27 +13,25 @@ import java.util.Properties;
 public class LoadProp {
 
     static Properties pro = new Properties();
-
     /**
      * 初始化资源文件属性
      */
     public static synchronized void initPro() {
         if(SingleChannel.getInstance().getConfigInfo().isEmpty()){
             // 加载资源路径
-            String path = "src\\main\\resources\\config.properties";
-            readPro(path);
+            String fileName = "config.properties";
+            System.out.println(fileName);
+            readPro(fileName);
         }
     }
     /**
      *
-     * @param path prop资源路径
+     * @param fileName prop资源路径
      */
-    public static void readPro(String path){
+    public static void readPro(String fileName){
         try {
-            //读取属性文件
-            InputStream is = new BufferedInputStream(new FileInputStream(new File(path)));
             //加载属性列表
-            pro.load(is);
+            pro.load(LoadProp.class.getClassLoader().getResourceAsStream(fileName));
             Iterator<String> iter = pro.stringPropertyNames().iterator();
             while(iter.hasNext()){
                 String key = iter.next();
@@ -41,8 +39,6 @@ public class LoadProp {
                 System.out.println(key+":"+value);
                 SingleChannel.putConfig(key, value);
             }
-            is.close();
-
         } catch (Exception e) {
             e.printStackTrace();
         }

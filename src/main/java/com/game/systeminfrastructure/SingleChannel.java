@@ -1,5 +1,7 @@
 package com.game.systeminfrastructure;
 
+import com.game.resourcesload.LoadProp;
+
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -18,8 +20,11 @@ public class SingleChannel {
     //统一管理此类的获取
     public static SingleChannel getInstance(){
         synchronized (SingleChannel.class){
-            if(sc == null)
+            if(sc == null){
                 sc = new SingleChannel();
+                //加载资源
+                LoadProp.initPro();
+            }
         }
         return sc;
     }

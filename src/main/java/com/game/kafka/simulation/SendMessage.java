@@ -9,7 +9,7 @@ import com.game.executors.ThreadPool;
 public class SendMessage {
 
     public static void main(String[] args) throws Exception{//100000000L
-        multThreadSendDataTest(10,1L,100000000L,500);
+        multThreadSendDataTest(1,1L,100000L,10);
     }
 
     public static void multThreadSendDataTest(int threadNum,Long start,Long end,int batchNum) throws Exception{

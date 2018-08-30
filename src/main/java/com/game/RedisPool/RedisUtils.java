@@ -1,8 +1,11 @@
 package com.game.RedisPool;
 
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
+
+import com.game.resourcesload.LoadProp;
 import com.game.systeminfrastructure.SingleChannel;
 import com.game.util.Constant;
 import com.game.util.DateUtil;
@@ -298,7 +301,35 @@ public class RedisUtils {
 	}
 
 	public static void main(String[] args) {
-		String cache = get("stif_invoice___metadata_invoice__");
-		System.out.println(cache);
+		//创建白名单 1 to 10000 为系统保留用户id
+		/*Set<String> bl = new HashSet<String>();
+		for(int i=1; i<=10000; i++){
+			bl.add(i+"");
+		}*/
+		try {
+
+			//sAdd(Constant.SYSTEM_PREFIX + Constant.WHITE_LIST_KEY ,bl);
+			//获取数据
+			//String wkey = Constant.SYSTEM_PREFIX + Constant.WHITE_LIST_KEY;
+			String bkey = Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY;
+			//删除黑名单数据
+			//remove(bkey);
+			Set<String> blResult = sMembers(bkey);
+			int min = 100;
+			int max = 0;
+			for (Iterator iterator = blResult.iterator(); iterator.hasNext();) {
+				int value = Integer.parseInt((String) iterator.next());
+				if(value > max) max = value;
+				if(value < min) min = value;
+				//if(value < 10000)
+				System.out.println("value:"+value);
+			}
+			System.out.println("max:"+max);
+			System.out.println("min:"+min);
+			System.out.println("size:"+blResult.size());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
 	}
 }
