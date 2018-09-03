@@ -14,6 +14,7 @@ import com.game.systeminfrastructure.SingleChannel
 import com.game.util.{DateUtil, Constant}
 import kafka.serializer.StringDecoder
 import org.apache.spark.rdd.RDD
+import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{rdd, SparkConf}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
@@ -174,17 +175,16 @@ object GameStatistics {
     messageFormattedStream.transform(
       rdd => {
         val blackPlayerList: util.Set[String] = RedisUtils.sMembers(Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY)
-        rdd.filter(rdd => blackPlayerList.contains(rdd.playerId))
+        rdd.filter(rdd => !blackPlayerList.contains(rdd.playerId))
       }
     )
   }
 
   /**
    *  1.只要消息actionType=4发送消息的动作
-   *  2.reduceByKeyAndWindow 这里需要减少延时性操作 window：3s；interval：2s
-   *  3.从广播中获取敏感词汇
-   *  4.如果含有就用特殊符号替换
-   *  5.再转发session
+   *  2.从广播中获取敏感词汇
+   *  3.如果含有就用特殊符号替换
+   *  4.再转发session
    */
   def filterBlackWordsFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.filter(gm =>({
@@ -228,7 +228,7 @@ object GameStatistics {
       Constant.ACTION_TYPE_HANG_UP == gm.actionType
     })
       .map(gm =>{
-      ((gm.gameId,gm.playerId,gm.roleId,gm.sessionId,gm.timeStamp,gm.actionType),1)
+      ((gm.gameId,gm.sessionId,gm.playerId),1)
     })
       .reduceByKeyAndWindow(
         (beforeValue:Int,nowValue:Int) =>{
@@ -254,10 +254,8 @@ object GameStatistics {
           val mailBody = new MailBody();
           mailBody.setSubject(Constant.RECEIVE_MAIL_SUBJECT);
           val warnContent = Constant.RECEIVE_MAIL_CONTENT
-            .replace("playerId",record._1._2.toString)
-            .replace("timeStamp",record._1._5.toString)
+            .replace("playerId",record._1._3.toString)
             .replace("gameId",record._1._1.toString)
-            .replace("roleId",record._1._3.toString)
           mailBody.setContent(warnContent)
           instance.send(SingleChannel.getConfig("send_mail_account"),mailBody)
         })
@@ -271,7 +269,7 @@ object GameStatistics {
    */
   def realTimePlayerTargetFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.map(rdd =>{
-      ((rdd.gameId,rdd.playerId),1)
+      ((rdd.gameId,rdd.sessionId,rdd.playerId),1)
     })
       .reduceByKeyAndWindow(
         (beforeValue:Int , nowValue:Int) => {
@@ -346,15 +344,15 @@ object GameStatistics {
    */
   def realTimeSumSesssionTargetFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.map(rdd =>{
-      ((rdd.gameId,rdd.sessionId),rdd.playerId)
+      ((rdd.gameId,rdd.sessionId,rdd.playerId),1)
     })
-      .groupByKeyAndWindow(
+      .reduceByKeyAndWindow(
+        (beforeValue:Int,nowValue:Int) =>{
+           1
+        },
         Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
         Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
       )
-      .map(rdd =>{
-      ((rdd),1)
-    })
       .updateStateByKey((values: Seq[Int], state: Option[(Long, Int)]) =>{
       // 1. 获取当前key传递的值
       val currentValue = values.sum
@@ -401,10 +399,11 @@ object GameStatistics {
     val messagedStream: DStream[String] = dStream.map(_._2)
     //第一步消息格式化
     val messageFormattedStream: DStream[GameMessage] = messageFormattedStreamFun(messagedStream)
+    messageFormattedStream.persist(StorageLevel.MEMORY_AND_DISK)
     /**
      * 先测试大数据量下kafka数据丢失问题
      */
-   /* messageFormattedStream.foreachRDD(rdd =>{
+    /*messageFormattedStream.foreachRDD(rdd =>{
       rdd.foreachPartition(partitionRecords =>{
         partitionRecords.foreach(record =>{
           LogInstance.getInstance().info(""+record.index)
@@ -414,11 +413,12 @@ object GameStatistics {
     //第二步判定黑名单操作
     determineBlackListFun(messageFormattedStream)
     //第三步将黑名单数据过滤掉
-    //val messageFormattedFilterStream: DStream[GameMessage] = messageFormattedFilterStreamFun(messageFormattedStream)
+    val messageFormattedFilterStream: DStream[GameMessage] = messageFormattedFilterStreamFun(messageFormattedStream)
+    messageFormattedFilterStream.persist(StorageLevel.MEMORY_AND_DISK);//后面多次用到格式化后的数据 这里采用缓存
     //第四步实时过滤掉敏感词汇并调用转发session
-    //filterBlackWordsFun(messageFormattedFilterStream)
+    filterBlackWordsFun(messageFormattedFilterStream)
     //第五步判断是否存在挂机行为
-    //filterHuangUpFun(messageFormattedFilterStream)
+    filterHuangUpFun(messageFormattedFilterStream)
     //第六步实时在线玩家游戏number
     //realTimePlayerTargetFun(messageFormattedFilterStream)
     //第七步实时在线角色受欢迎度 数量

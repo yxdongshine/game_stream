@@ -19,7 +19,7 @@ public class StrUtil {
     public static final int itemRange = 1000;//游戏道具1000件
     public static final int monsterTypeRange = 10;//怪物种类10
     public static final int monsterIdRange = 500;//单场最大产生500个
-    public static final double probability = 0.4;//百分十四十概率会发过敏词语
+    public static final double probability = 0.7;//百分十四十概率会发过敏词语
 
     public static final  String blackWords[] = {
             "你妹","狗日","装逼","草泥马","特么的","撕逼","玛拉戈壁","爆菊","JB","呆逼","本屌",
@@ -31,7 +31,7 @@ public class StrUtil {
             "可不可以让我回到突然长大的那一天至少",
             "那个时候我会觉得长大是一种美好",
             "看着渐渐的失去联系的朋友，，我们只能回忆那些美好的东西",
-            "突然发现，这个世界只要自己开心了，就他妈瞬间变得美好了",
+            "突然发现，这个世界只要自己开心了，就瞬间变得美好了",
             "世界上最美好的事情，就是和你一起走在路上，我未老，而你依然",
             "生活再苦，也不要失去信念，因为美好的日子，也许就在明天",
             "不可否认，暗恋也许是我们经历过的最美好的感情",

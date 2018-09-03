@@ -1,6 +1,7 @@
 package com.game.InnerGate;
 
 import com.game.bean.GameMessage;
+import com.game.instance.LogInstance;
 
 /**
  * Created by YXD on 2018/8/17.
@@ -55,6 +56,7 @@ public class InnerConnectPool {
                                long attackedRoleId,
                                String mesContent
                                ){
+        LogInstance.getInstance().info(mesContent);
         return true;
     }
 }
