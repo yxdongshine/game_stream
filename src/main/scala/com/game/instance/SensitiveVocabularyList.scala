@@ -6,8 +6,9 @@ import com.game.RedisPool.RedisUtils
 import com.game.util.Constant
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
+import scala.collection.{mutable, JavaConversions}
+import scala.collection.JavaConversions._
 
-import scala.collection.{JavaConversions, mutable}
 
 /**
  * Created by YXD on 2018/8/17.
@@ -21,9 +22,9 @@ object SensitiveVocabularyList {
     if (instance == null) {
       synchronized {
         if (instance == null) {
-          //这里白名单数据获取redis
-          val whitePlayerList: util.Set[String] = RedisUtils.sMembers(Constant.SYSTEM_PREFIX + Constant.SENSITIVE_VOCABULARY_LIST_KEY)
-          instance = sc.broadcast(JavaConversions.asScalaSet(whitePlayerList))
+          //这里敏感词汇数据获取redis
+          val sensitiveVocabularyList: util.Set[String] = RedisUtils.sMembers(Constant.SYSTEM_PREFIX + Constant.SENSITIVE_VOCABULARY_LIST_KEY)
+          instance = sc.broadcast(JavaConversions.asScalaSet(sensitiveVocabularyList))
         }
       }
     }

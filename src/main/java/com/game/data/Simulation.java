@@ -26,7 +26,7 @@ public class Simulation {
         gm.setMapId(StrUtil.createMapId());
         gm.setTimeStamp(DateUtil.getSystemTime());
         //int actionType = StrUtil.createActionType();
-        double productProbability = StrUtil.random.nextDouble();//产生0到1的double概率
+        double productProbability = 0.1;//StrUtil.random.nextDouble();//产生0到1的double概率
         if(0.2 >= productProbability){//小于0.2 产生挂机行为
             gm.setActionType(Constant.ACTION_TYPE_HANG_UP);
         }else if(0.4 >= productProbability && 0.2 < productProbability){

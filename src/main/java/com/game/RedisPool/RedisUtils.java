@@ -311,28 +311,28 @@ public class RedisUtils {
 
 			//sAdd(Constant.SYSTEM_PREFIX + Constant.WHITE_LIST_KEY ,bl);
 			//添加敏感词汇redis中
-			String mKey = Constant.SYSTEM_PREFIX + Constant.SENSITIVE_VOCABULARY_LIST_KEY;
-			Set set = new HashSet();
+			//String mKey = Constant.SYSTEM_PREFIX + Constant.SENSITIVE_VOCABULARY_LIST_KEY;
+			/*Set set = new HashSet();
 			CollectionUtils.addAll(set, StrUtil.blackWords);
-			sAdd(mKey,set);
+			sAdd(mKey,set);*/
 			//获取数据
 			//String wkey = Constant.SYSTEM_PREFIX + Constant.WHITE_LIST_KEY;
-			//String bkey = Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY;
+			String bkey = Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY;
 			//删除黑名单数据
-			//remove(bkey);
-			Set<String> blResult = sMembers(mKey);
+			remove(bkey);
+			Set<String> blResult = sMembers(bkey);
 			int min = 10000;
 			int max = 0;
 			for (Iterator iterator = blResult.iterator(); iterator.hasNext();) {
-				String value = (String) iterator.next();
-				/*int value = Integer.parseInt((String) iterator.next());
+				//String value = (String) iterator.next();
+				int value = Integer.parseInt((String) iterator.next());
 				if(value > max) max = value;
-				if(value < min) min = value;*/
-				//if(value < 10000)
+				if(value < min) min = value;
+				if(value < 10000)
 				System.out.println("value:"+value);
 			}
-			/*System.out.println("max:"+max);
-			System.out.println("min:"+min);*/
+			System.out.println("max:"+max);
+			System.out.println("min:"+min);
 			System.out.println("size:"+blResult.size());
 		} catch (Exception e) {
 			e.printStackTrace();

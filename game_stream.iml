@@ -10,6 +10,7 @@
       <sourceFolder url="file://$MODULE_DIR$/src/main/filter" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/main/java" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/main/org" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/src/main/org.apache.hadoop.fs" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

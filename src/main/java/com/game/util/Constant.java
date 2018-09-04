@@ -23,10 +23,10 @@ public class Constant {
     public static final int BATCH_SECONDS = 1;//stream 批次时间 1s
     public static final int BLACK_LIST_WINDOW_LENGTH_SECONDS = 3;//黑名单窗口长度
     public static final int BLACK_LIST_WINDOW_INTERVAL_SECONDS = 3;//黑名单窗口滑动时间
-    public static final int MALICIOUS_ATTACK_PLAYER_SEND_NUM = 2;//Malicious attack 次数上限100
+    public static final int MALICIOUS_ATTACK_PLAYER_SEND_NUM = 9;//Malicious attack 次数上限100
     public static final int HANG_UP_WINDOW_LENGTH_SECONDS = 3;//挂机窗口长度
     public static final int HANG_UP_WINDOW_INTERVAL_SECONDS = 3;//挂机窗口滑动时间
-    public static final int HANG_UP_SEND_NUM = 2;//一分钟发送挂机消息 次数上限
+    public static final int HANG_UP_SEND_NUM = 3;//一分钟发送挂机消息 次数上限
     public static final int REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS = 3;//实时指标窗口长度
     public static final int REAL_TIME_TARGET_INTERVAL_SECONDS = 3;//实时指标滑动时间
     public static final String REAL_TIME_TARGET_SESSION_NUMBER_KEY = "session_number_";//在线回话数量key

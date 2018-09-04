@@ -32,9 +32,9 @@ object GameStatistics {
 
   def createSsc():StreamingContext ={
     val conf = new SparkConf()
-      //.setMaster("local[*]")
+      .setMaster("local[*]")
       .setAppName(Constant.APP_NAME)
-      .set("spark.default.parallelism","60")
+      //.set("spark.default.parallelism","60")
       .set("spark.streaming.receiver.writeAheadLog.enable","true")
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
 
@@ -154,7 +154,7 @@ object GameStatistics {
               var blackPlayerList:mutable.Set[String] = mutable.Set()
               partitionOfRecords.foreach(record => {
                 blackPlayerList.+=(record._1.toString)
-                LogInstance.getInstance().info(""+record._1)
+                //LogInstance.getInstance().info(""+record._1)
               })
               if(!blackPlayerList.isEmpty){
                 // 这里更新黑名单
@@ -187,29 +187,26 @@ object GameStatistics {
    *  4.再转发session
    */
   def filterBlackWordsFun(messageFormattedFilterStream: DStream[GameMessage]) = {
-    messageFormattedFilterStream.filter(gm =>({
-      Constant.ACTION_TYPE_SEND_MESSAGE == gm.actionType}))
+    messageFormattedFilterStream.filter(
+       gm => { Constant.ACTION_TYPE_SEND_MESSAGE == gm.actionType }
+    )
       .foreachRDD(rdd =>{
       //这里获取分布式rdd记录能获取到，因为是广播变量
       val sensitiveVocabularyList:Broadcast[mutable.Set[String]] = SensitiveVocabularyList.getInstance(rdd.sparkContext)
       rdd.foreachPartition(partitionOfRecords =>{
         //这里优化 获取发送网关连接
         val innerGate = InnerConnectPool.getInstance()
-        partitionOfRecords.map(record =>{
-          /*if(sensitiveVocabularyList.value.exists(value =>{
-              record.mesContent.contains(value)
-          })){//如果存在替换原来的敏感词汇
-            record
-          }*/
+        partitionOfRecords.foreach(record =>{
+          var message = record.mesContent
           sensitiveVocabularyList.value.foreach(value =>{
             if(record.mesContent.contains(value)){
-              record.mesContent.replace(value,Constant.SENSITIVE_VOCABULARY_REPLACE_CHARS)
+              message = record.mesContent.replace(value,Constant.SENSITIVE_VOCABULARY_REPLACE_CHARS)
             }
           })
           //然后每条消息都需要转发给网关服务网
           innerGate.sendMessage(record.key,record.index,record.gameId,record.playerId,
             record.roleId,record.sessionId,record.mapId,record.timeStamp,record.actionType,
-            record.itemId,record.monsterType,record.monsterId,record.attackedRoleId,record.mesContent
+            record.itemId,record.monsterType,record.monsterId,record.attackedRoleId,message
           )
         })
       })
@@ -249,7 +246,8 @@ object GameStatistics {
         account.setSmtpHost(Constant.SMTP_HOST);
         account.setSmtpPort(Constant.SMTP_PORT);
         val instance = MailUtils.newInstance(account)
-        partitionOfRecords.map(record =>{
+        partitionOfRecords.foreach(record =>{
+          LogInstance.getInstance.info(record.toString())
           //发送每一条邮件
           val mailBody = new MailBody();
           mailBody.setSubject(Constant.RECEIVE_MAIL_SUBJECT);
@@ -257,7 +255,7 @@ object GameStatistics {
             .replace("playerId",record._1._3.toString)
             .replace("gameId",record._1._1.toString)
           mailBody.setContent(warnContent)
-          instance.send(SingleChannel.getConfig("send_mail_account"),mailBody)
+          //instance.send(SingleChannel.getConfig("send_mail_account"),mailBody)
         })
       })
     })
@@ -288,7 +286,7 @@ object GameStatistics {
         val conn = DBManager.getConn
         partitionRecords.foreach(record => {
           val gt = {
-            new GameTarget(record._1, Constant.TARGET_TYPE_PLAYER, -1L, record._2, DateUtil.getSystemTime,"")
+            new GameTarget(record._1, Constant.TARGET_TYPE_PLAYER, 0L, record._2, DateUtil.getSystemTime,"")
           }
           val gtDao = new GameTargetImpl()
           gtDao.add(gt,conn)
@@ -399,7 +397,7 @@ object GameStatistics {
     val messagedStream: DStream[String] = dStream.map(_._2)
     //第一步消息格式化
     val messageFormattedStream: DStream[GameMessage] = messageFormattedStreamFun(messagedStream)
-    messageFormattedStream.persist(StorageLevel.MEMORY_AND_DISK)
+    //messageFormattedStream.persist(StorageLevel.MEMORY_AND_DISK)
     /**
      * 先测试大数据量下kafka数据丢失问题
      */
@@ -420,7 +418,7 @@ object GameStatistics {
     //第五步判断是否存在挂机行为
     filterHuangUpFun(messageFormattedFilterStream)
     //第六步实时在线玩家游戏number
-    //realTimePlayerTargetFun(messageFormattedFilterStream)
+    realTimePlayerTargetFun(messageFormattedFilterStream)
     //第七步实时在线角色受欢迎度 数量
     //realTimeRoleTargetFun(messageFormattedFilterStream)
     //第八步实时统计该游戏累积玩家数量
