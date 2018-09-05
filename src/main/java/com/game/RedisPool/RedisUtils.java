@@ -70,6 +70,28 @@ public class RedisUtils {
 		returnClient(localJedis);
 	}
 
+	/**
+	 * 将 key的值设为value
+	 *
+	 * @param key
+	 * @param value
+	 * @throws Exception
+	 * @author YXD
+	 */
+	public static void accumulation(String key, String value) throws Exception {
+		if (StrUtil.isNull(key))
+			throw new Exception("redis error: key is empty");
+		if (StrUtil.isNull(value))
+			throw new Exception("redis error: value is empty");
+
+		Jedis localJedis = getJedis();
+		String oldValue = localJedis.get(key);
+		if(StrUtil.isNotNull(oldValue)){
+			value = Long.parseLong(value) + Long.parseLong(oldValue) +"";
+		}
+		localJedis.set(key, value);
+		returnClient(localJedis);
+	}
 
 	/**
 	 * redis中set集合添加元素
@@ -247,6 +269,25 @@ public class RedisUtils {
 		returnClient(localJedis);
 	}
 
+
+	/**
+	 * 将keys从缓存中删除
+	 * @param key
+	 * @author YXD
+	 */
+	public static void removeKeys(String key) {
+		if(StrUtil.isNull(key)){
+			return;
+		}
+		Jedis localJedis = getJedis();
+		Set<String> set = localJedis.keys(key + "*");
+		Iterator<String> it = set.iterator();
+		while(it.hasNext()){
+			String keyStr = it.next();
+			localJedis.del(keyStr);
+		}
+		returnClient(localJedis);
+	}
 	/**
 	 * 删除带有某个前缀的所有缓存<br>
 	 * <b>慎用</b>
@@ -318,18 +359,23 @@ public class RedisUtils {
 			//获取数据
 			//String wkey = Constant.SYSTEM_PREFIX + Constant.WHITE_LIST_KEY;
 			String bkey = Constant.SYSTEM_PREFIX + Constant.BLACK_LIST_KEY;
+			//游戏累加指标
+			String gameKeys = Constant.SYSTEM_PREFIX + Constant.REAL_TIME_TARGET_SESSION_NUMBER_KEY;
 			//删除黑名单数据
-			remove(bkey);
-			Set<String> blResult = sMembers(bkey);
+			//remove(bkey);
+			//removeKeys(gameKeys);
+			//Set<String> blResult = sMembers(bkey);
+			Set<String> blResult = keys(gameKeys);
 			int min = 10000;
 			int max = 0;
 			for (Iterator iterator = blResult.iterator(); iterator.hasNext();) {
-				//String value = (String) iterator.next();
-				int value = Integer.parseInt((String) iterator.next());
+				String value = (String) iterator.next();
+				/*int value = Integer.parseInt((String) iterator.next());
 				if(value > max) max = value;
 				if(value < min) min = value;
-				if(value < 10000)
-				System.out.println("value:"+value);
+				if(value < 10000)*/
+				System.out.println("key:"+value);
+				System.out.println("value:"+get(value));
 			}
 			System.out.println("max:"+max);
 			System.out.println("min:"+min);

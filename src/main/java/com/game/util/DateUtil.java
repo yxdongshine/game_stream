@@ -8,10 +8,28 @@ import java.util.UUID;
  */
 public class DateUtil {
 
+    public static final String FORMAT_SECOND = "yyyy-MM-dd HH:mm:ss";
+    public static final String FORMAT_MINUTE = "yyyy-MM-dd HH:mm";
+
     public synchronized static Long getSystemTime(){
         return System.currentTimeMillis();
     }
 
+    /**
+     * 当前时间的秒
+     * @return
+     */
+    public synchronized static Long getTime(String formatStr){
+        long secondTime = System.currentTimeMillis();
+        try {
+            SimpleDateFormat localSimpleDateFormat = new SimpleDateFormat(formatStr);
+            String dateStr = localSimpleDateFormat.format(secondTime);
+            secondTime = localSimpleDateFormat.parse(dateStr).getTime();
+        }catch  (Exception e) {
+            e.printStackTrace();
+        }
+        return secondTime;
+    }
 
     public static String sub(Date paramDate1, Date paramDate2) {
         long l1 = paramDate1.getTime() / 1000L;
@@ -140,12 +158,13 @@ public class DateUtil {
     }
 
     public static void main(String[] paramArrayOfString) throws Exception {
-        SimpleDateFormat localSimpleDateFormat = new SimpleDateFormat(
+       /* SimpleDateFormat localSimpleDateFormat = new SimpleDateFormat(
                 "yyyy-MM-dd HH:mm:ss");
         Date localDate1 = localSimpleDateFormat.parse("2012-03-01 10:00:00");
         Date localDate2 = localSimpleDateFormat.parse("2012-03-01 10:06:00");
         System.out.println(getProcess(localDate1, localDate2));
-        System.out.println(nowLocal());
+        System.out.println(nowLocal());*/
+        System.out.println(getTime(FORMAT_SECOND));
     }
 
 }

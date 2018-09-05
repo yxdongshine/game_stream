@@ -5,42 +5,30 @@ package com.game.bean;
  */
 public class GameTarget {
 
-    private int gameId;//哪一个游戏，不止统计一个游戏
+    private int entryId;//哪一个游戏，不止统计一个游戏 或者roleid
     private int targetType;//1 游戏玩家；2 角色
-    private Long roleId;//角色id
     private int onlineNumber;//在线数量
     private Long nowTime;//此时时间戳
     private String params;// 备用参数
 
-    public GameTarget(int gameId,
+    public GameTarget(int entryId,
                            int targetType,
-                           Long roleId,
                            int onlineNumber,
                            Long nowTime,
                            String params){
-        this.gameId = gameId;
+        this.entryId = entryId;
         this.targetType = targetType;
-        this.roleId = roleId;
         this.onlineNumber = onlineNumber;
         this.nowTime = nowTime;
         this.params = params;
     }
 
-    public static GameTarget getInstance(int gameId,
+    public static GameTarget getInstance(int entryId,
                                   int targetType,
-                                  Long roleId,
                                   int onlineNumber,
                                   Long nowTime,
                                   String params){
-        return new GameTarget(gameId, targetType,roleId,onlineNumber,nowTime,params);
-    }
-
-    public int getGameId() {
-        return gameId;
-    }
-
-    public void setGameId(int gameId) {
-        this.gameId = gameId;
+        return new GameTarget(entryId, targetType,onlineNumber,nowTime,params);
     }
 
     public int getTargetType() {
@@ -51,12 +39,12 @@ public class GameTarget {
         this.targetType = targetType;
     }
 
-    public Long getRoleId() {
-        return roleId;
+    public int getEntryId() {
+        return entryId;
     }
 
-    public void setRoleId(Long roleId) {
-        this.roleId = roleId;
+    public void setEntryId(int entryId) {
+        this.entryId = entryId;
     }
 
     public int getOnlineNumber() {

@@ -98,7 +98,7 @@ object GameStatistics {
             jsonObj.getLong("index"),
             jsonObj.getInteger("gameId"),
             jsonObj.getLong("playerId"),
-            jsonObj.getLong("roleId"),
+            jsonObj.getInteger("roleId"),
             jsonObj.getLong("sessionId"),
             jsonObj.getLong("mapId"),
             jsonObj.getLong("timeStamp"),
@@ -281,19 +281,19 @@ object GameStatistics {
     })
       .reduceByKey((beforeValue:Int , nowValue:Int) =>{beforeValue + nowValue})
       .foreachRDD(rdd =>{
-      rdd.foreachPartition(partitionRecords =>{
-        //优化方式
-        val conn = DBManager.getConn
-        partitionRecords.foreach(record => {
-          val gt = {
-            new GameTarget(record._1, Constant.TARGET_TYPE_PLAYER, 0L, record._2, DateUtil.getSystemTime,"")
-          }
-          val gtDao = new GameTargetImpl()
-          gtDao.add(gt,conn)
+        rdd.foreachPartition(partitionRecords =>{
+          //优化方式
+          val conn = DBManager.getConn
+          partitionRecords.foreach(record => {
+            val gt = {
+              new GameTarget(record._1, Constant.TARGET_TYPE_PLAYER, record._2, DateUtil.getTime(DateUtil.FORMAT_SECOND),"")
+            }
+            val gtDao = new GameTargetImpl()
+            gtDao.add(gt,conn)
+          })
+          //这里关闭连接池
+          DBManager.closeConn(conn)
         })
-        //这里关闭连接池
-        DBManager.closeConn(conn)
-      })
     })
   }
 
@@ -303,14 +303,7 @@ object GameStatistics {
    */
   def realTimeRoleTargetFun(messageFormattedFilterStream: DStream[GameMessage]) = {
     messageFormattedFilterStream.map(rdd =>{
-      ((rdd.gameId,rdd.sessionId),rdd.roleId)
-    })
-      .groupByKeyAndWindow(
-        Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
-        Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
-      )
-      .map(rdd =>{
-      ((rdd._1._1,rdd._2.toList.distinct.head),1)
+      ((rdd.gameId,rdd.sessionId,rdd.roleId),1)
     })
       .reduceByKeyAndWindow(
         (beforeValue:Int,nowValue:Int) =>{
@@ -319,13 +312,17 @@ object GameStatistics {
         Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
         Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
       )
+      .map(rdd =>{
+        (rdd._1._3, 1)//游戏roleid 数量
+      })
+      .reduceByKey((beforeValue:Int , nowValue:Int) =>{beforeValue + nowValue})
       .foreachRDD(rdd =>{
       rdd.foreachPartition(partitionRecords =>{
         //优化方式
         val conn = DBManager.getConn
         partitionRecords.foreach(record => {
           val gt = {
-            new GameTarget(record._1._1, Constant.TARGET_TYPE_ROLE, record._1._2, record._2, DateUtil.getSystemTime,"")
+            new GameTarget(record._1, Constant.TARGET_TYPE_ROLE,  record._2, DateUtil.getTime(DateUtil.FORMAT_SECOND),"")
           }
           val gtDao = new GameTargetImpl()
           gtDao.add(gt,conn)
@@ -351,6 +348,9 @@ object GameStatistics {
         Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
         Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
       )
+      .map(rdd =>{
+      (rdd._1._1,rdd._2)//游戏id 玩家数量
+    })
       .updateStateByKey((values: Seq[Int], state: Option[(Long, Int)]) =>{
       // 1. 获取当前key传递的值
       val currentValue = values.sum
@@ -366,16 +366,13 @@ object GameStatistics {
         Some((preValue + currentValue, 0))
       }
     })
-      .map(rdd =>{
-      (rdd._1,rdd._2._1)
-    })
       .foreachRDD(rdd =>{
       rdd.foreachPartition(partitionRecords => {
         partitionRecords.foreach(record => {
           //因为在线人数指标只会一个值
           val key = Constant.SYSTEM_PREFIX + Constant.REAL_TIME_TARGET_SESSION_NUMBER_KEY +
-            record._1._1 + Constant.SYSTEM_DELIMITED_SYMBOL +record._1._2
-          RedisUtils.set(key,record._2.toString)
+            record._1
+          RedisUtils.set(key,record._2._1.toString)
         })
       })
     })
@@ -420,9 +417,9 @@ object GameStatistics {
     //第六步实时在线玩家游戏number
     realTimePlayerTargetFun(messageFormattedFilterStream)
     //第七步实时在线角色受欢迎度 数量
-    //realTimeRoleTargetFun(messageFormattedFilterStream)
+    realTimeRoleTargetFun(messageFormattedFilterStream)
     //第八步实时统计该游戏累积玩家数量
-    //realTimeSumSesssionTargetFun(messageFormattedFilterStream)
+    realTimeSumSesssionTargetFun(messageFormattedFilterStream)
     //
     //最后也要返回StreamingContext
     ssc
@@ -444,7 +441,7 @@ case class GameMessage(
                         index: Long,
                         gameId: Int ,
                         playerId: Long ,
-                        roleId: Long ,
+                        roleId: Int ,
                         sessionId: Long ,
                         mapId: Long ,
                         timeStamp: Long ,

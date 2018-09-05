@@ -19,25 +19,20 @@ public class GameTargetImpl implements GameTargetDao{
      */
     public Boolean add(GameTarget gt,Connection conn) {
         int isSuccess = 0;
-        String sql = " insert into game_target (game_id,target_type,role_id,online_number,now_time,params) values (?,?,?,?,?,?) ";
-        PreparedStatement pstmt = null;
+        String sql = " insert into game_target (entry_id,target_type,online_number,now_time,params)" +
+                " values (?,?,?,?,?) on DUPLICATE key update online_number = online_number + ? ";
         try {
-            pstmt = (PreparedStatement)conn.prepareStatement(sql);
-            pstmt.setInt(1, gt.getGameId());
+            PreparedStatement pstmt = (PreparedStatement)conn.prepareStatement(sql);
+            pstmt.setInt(1, gt.getEntryId());
             pstmt.setInt(2, gt.getTargetType());
-            pstmt.setLong(3, gt.getRoleId());
-            pstmt.setInt(4, gt.getOnlineNumber());
-            pstmt.setLong(5, gt.getNowTime());
-            pstmt.setString(6, gt.getParams());
+            pstmt.setInt(3, gt.getOnlineNumber());
+            pstmt.setLong(4, gt.getNowTime());
+            pstmt.setString(5, gt.getParams());
+            pstmt.setInt(6, gt.getOnlineNumber());
             isSuccess = pstmt.executeUpdate();
             pstmt.close();
-            conn.close();
+            //conn.close();
         } catch (SQLException e) {
-            try {
-                pstmt.close();
-            } catch (Exception e1){
-                e1.printStackTrace();
-            }
             e.printStackTrace();
         }
         return isSuccess > 0 ;
