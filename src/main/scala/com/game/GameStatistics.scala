@@ -248,7 +248,7 @@ object GameStatistics {
         account.setSmtpPort(Constant.SMTP_PORT);
         val instance = MailUtils.newInstance(account)
         partitionOfRecords.foreach(record =>{
-          LogInstance.getInstance.info(record.toString())
+          //LogInstance.getInstance.info(record.toString())
           //发送每一条邮件
           val mailBody = new MailBody();
           mailBody.setSubject(Constant.RECEIVE_MAIL_SUBJECT);
@@ -342,16 +342,17 @@ object GameStatistics {
     messageFormattedFilterStream.map(rdd =>{
       ((rdd.gameId,rdd.sessionId,rdd.playerId),1)
     })
-      .reduceByKeyAndWindow(
+      .reduceByKey(_ + _)
+     /* .reduceByKeyAndWindow(
         (beforeValue:Int,nowValue:Int) =>{
-           1
+          beforeValue + nowValue
         },
         Seconds(Constant.REAL_TIME_TARGET_WINDOW_LENGTH_SECONDS),
         Seconds(Constant.REAL_TIME_TARGET_INTERVAL_SECONDS)
       )
       .map(rdd =>{
-      (rdd._1._1,rdd._2)//游戏id 玩家数量
-    })
+      (rdd._1._1,1)//游戏id 玩家数量
+    })*/
       .updateStateByKey((values: Seq[Int], state: Option[(Long, Int)]) =>{
       // 1. 获取当前key传递的值
       val currentValue = values.sum
@@ -395,7 +396,7 @@ object GameStatistics {
     val messagedStream: DStream[String] = dStream.map(_._2)//.repartition(4)
     //第一步消息格式化
     val messageFormattedStream: DStream[GameMessage] = messageFormattedStreamFun(messagedStream)
-    //messageFormattedStream.persist(StorageLevel.MEMORY_AND_DISK)
+    messageFormattedStream.persist(StorageLevel.MEMORY_ONLY_SER)
     /**
      * 先测试大数据量下kafka数据丢失问题
      */
@@ -410,7 +411,7 @@ object GameStatistics {
     determineBlackListFun(messageFormattedStream)
     //第三步将黑名单数据过滤掉
     val messageFormattedFilterStream: DStream[GameMessage] = messageFormattedFilterStreamFun(messageFormattedStream)
-    //messageFormattedFilterStream.persist(StorageLevel.MEMORY_ONLY_SER);//后面多次用到格式化后的数据 这里采用缓存
+    messageFormattedFilterStream.persist(StorageLevel.MEMORY_ONLY_SER);//后面多次用到格式化后的数据 这里采用缓存
     //第四步实时过滤掉敏感词汇并调用转发session
     filterBlackWordsFun(messageFormattedFilterStream)
     //第五步判断是否存在挂机行为
