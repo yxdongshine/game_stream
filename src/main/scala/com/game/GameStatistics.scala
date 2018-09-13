@@ -34,10 +34,11 @@ object GameStatistics {
     val conf = new SparkConf()
       //.setMaster("local[*]")
       .setAppName(Constant.APP_NAME)
-      .set("spark.default.parallelism","60")
+      //.set("spark.default.parallelism","24")
       .set("spark.streaming.blockInterval","50ms")
       .set("spark.streaming.receiver.writeAheadLog.enable","true")
       .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .set("spark.memory.storageFraction","0.2")
 
     conf.registerKryoClasses(Array(classOf[GameMessage]))
 
@@ -393,10 +394,10 @@ object GameStatistics {
     //设置stream checkpoint时间
     //dStream.checkpoint(Seconds(5 * Constant.BATCH_SECONDS))
     //对于数据流来说 目前只需要value，针对分区的key暂时不处理
-    val messagedStream: DStream[String] = dStream.map(_._2)//.repartition(4)
+    val messagedStream: DStream[String] = dStream.map(_._2)//.repartition(16)
     //第一步消息格式化
     val messageFormattedStream: DStream[GameMessage] = messageFormattedStreamFun(messagedStream)
-    messageFormattedStream.persist(StorageLevel.MEMORY_ONLY_SER)
+    //messageFormattedStream.persist(StorageLevel.MEMORY_ONLY_SER)
     /**
      * 先测试大数据量下kafka数据丢失问题
      */
@@ -411,7 +412,7 @@ object GameStatistics {
     determineBlackListFun(messageFormattedStream)
     //第三步将黑名单数据过滤掉
     val messageFormattedFilterStream: DStream[GameMessage] = messageFormattedFilterStreamFun(messageFormattedStream)
-    messageFormattedFilterStream.persist(StorageLevel.MEMORY_ONLY_SER);//后面多次用到格式化后的数据 这里采用缓存
+    //messageFormattedFilterStream.persist(StorageLevel.MEMORY_ONLY_SER);//后面多次用到格式化后的数据 这里采用缓存
     //第四步实时过滤掉敏感词汇并调用转发session
     filterBlackWordsFun(messageFormattedFilterStream)
     //第五步判断是否存在挂机行为
@@ -421,7 +422,7 @@ object GameStatistics {
     //第七步实时在线角色受欢迎度 数量
     realTimeRoleTargetFun(messageFormattedFilterStream)
     //第八步实时统计该游戏累积玩家数量
-    realTimeSumSesssionTargetFun(messageFormattedFilterStream)
+    //realTimeSumSesssionTargetFun(messageFormattedFilterStream)
     //
     //最后也要返回StreamingContext
     ssc
